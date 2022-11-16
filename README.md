@@ -1,19 +1,8 @@
-# `Cloudstream3 Plugin Repo Template`
+# `Kamyroll CS3`
 
-Template for a [Cloudstream3](https://github.com/recloudstream) plugin repo
+To use it in the app copy this [link](https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/master/repo.json)
 
-**⚠️ Make sure you check "Include all branches" when using this template**
-
- 
-## Getting started with writing your first plugin
-
-This template includes 1 example plugin.
-
-1. Open the root build.gradle.kts, read the comments and replace all the placeholders
-2. Familiarize yourself with the project structure. Most files are commented
-3. Build or deploy your first plugin using:
-   - Windows: `.\gradlew.bat ExampleProvider:make` or `.\gradlew.bat ExampleProvider:deployWithAdb`
-   - Linux & Mac: `./gradlew ExampleProvider:make` or `./gradlew ExampleProvider:deployWithAdb`
+Plugin json:https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/builds/plugins.json
 
 ## Attribution
 
