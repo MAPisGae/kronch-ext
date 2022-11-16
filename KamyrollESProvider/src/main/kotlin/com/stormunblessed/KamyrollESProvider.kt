@@ -350,6 +350,7 @@ class KamyrollESProvider: MainAPI() {
                 val seasonTitle = it.seasonTitle
                 val dub = it.isDubbed
                 val eptitle = it.title
+                val realeptitle = if (eptitle.isNullOrEmpty()) seasonTitle else eptitle
                 val epthumb = it.images?.thumbnail?.getOrNull(6)?.source
                 //val epdesc = if (dub == true) "$dubTitle \n ${it.description}" else "${it.description}" not needed for spanish
                 /* Removed cause crunchy it's confusing
@@ -359,7 +360,7 @@ class KamyrollESProvider: MainAPI() {
                 val epID = it.id
                 val ep = Episode(
                     data = epID!!,
-                    name = eptitle,
+                    name = realeptitle,
                     posterUrl = epthumb,
                 )
                 if (seasonTitle!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))) {

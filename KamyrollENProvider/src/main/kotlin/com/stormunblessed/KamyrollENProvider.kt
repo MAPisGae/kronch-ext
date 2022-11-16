@@ -212,7 +212,6 @@ class KamyrollENProvider: MainAPI() {
                 "query" to query,
                 "channel_id" to "crunchyroll",
                 "limit" to "20",
-                "locale" to "en-US"
             )
         ).parsed<KamySearchResponse>()
         val type = main.items?.first()?.type
