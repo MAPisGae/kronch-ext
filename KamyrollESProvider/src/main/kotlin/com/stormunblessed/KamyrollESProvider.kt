@@ -16,7 +16,7 @@ class KamyrollESProvider: MainAPI() {
         var latestcountryID = ""
         private const val krunchyapi = "https://beta-api.crunchyroll.com"
     }
-    override var name = "Kamyroll"
+    override var name = "Kamyroll ES"
     override var mainUrl = "https://api.kamyroll.tech" //apirurl
     override val instantLinkLoading = false
     override val hasMainPage = true
