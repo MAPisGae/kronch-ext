@@ -332,8 +332,11 @@ class KamyrollESProvider: MainAPI() {
         val tags = metadainfo.data.first().keywords
         val year = metadainfo.data.first().seriesLaunchYear
         val posterstring = metadainfo.data.first().images?.posterWide?.toString()
+        val posterstring2 = metadainfo.data.first().images?.posterTall.toString()
         val posterregex = Regex("height=900.*source=(.*),.*type=poster_wide.*PosterTall")
-        val poster = posterregex.find(posterstring!!)?.destructured?.component1() ?: ""
+        val posterRegex2 = Regex("height=1800.*source=(.*),.*type=poster_tall.*PosterTall")
+        val backgroundposter = posterregex.find(posterstring!!)?.destructured?.component1() ?: ""
+        val poster = posterRegex2.find(posterstring2)?.destructured?.component1() ?: ""
         val description = metadainfo.data.first().description
         val seasonsresponse = app.get("$mainUrl/content/v1/seasons",
             headers = latestHeader,
@@ -378,7 +381,8 @@ class KamyrollESProvider: MainAPI() {
             this.plot = description
             this.tags = tags
             this.year = year
-            this.backgroundPosterUrl = poster
+            this.posterUrl = poster
+            this.backgroundPosterUrl = backgroundposter
         }
     }
 
