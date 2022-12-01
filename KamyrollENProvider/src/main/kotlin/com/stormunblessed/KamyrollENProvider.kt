@@ -369,7 +369,7 @@ class KamyrollENProvider: MainAPI() {
                     //nothing to filter out non HD eps
                 } else if ((dubTitle!!.contains("English") && dub == true)) {
                     dubeps.add(ep)
-                } else if (dub == false) {
+                } else if (!seasonTitle.contains(Regex("Dub"))) {
                     eps.add(ep)
                 }
             }
@@ -380,7 +380,7 @@ class KamyrollENProvider: MainAPI() {
             this.plot = description
             this.tags = tags
             this.year = year
-            this.posterUrl = poster
+            this.backgroundPosterUrl = poster
         }
     }
 
@@ -402,7 +402,28 @@ class KamyrollENProvider: MainAPI() {
         @JsonProperty("hardsub_locale" ) var hardsubLocale : String? = null,
         @JsonProperty("url"            ) var url           : String? = null
     )
-
+    suspend fun getKamyStream(
+        streamLink: String,
+        name: String,
+        callback: (ExtractorLink) -> Unit
+    )  {
+        return generateM3u8(
+            this.name,
+            streamLink,
+            ""
+        ).forEach { sub ->
+            callback(
+                ExtractorLink(
+                    this.name,
+                    name,
+                    sub.url,
+                    "",
+                    getQualityFromName(sub.quality.toString()),
+                    true
+                )
+            )
+        }
+    }
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -418,24 +439,11 @@ class KamyrollENProvider: MainAPI() {
             )).parsed<KamyStreams>()
         streamsrequest.streams.forEach {
             val urlstream = it.url!!
+            if ((it.audioLocale!!.contains(Regex("ja-JP|zh-CN")) && it.hardsubLocale.isNullOrEmpty()))
+                getKamyStream(urlstream, "Kamyroll RAW", callback)
             if ((it.hardsubLocale!!.contains("en-US")|| it.audioLocale!!.contains("en-US"))) {
                 val name = if (it.audioLocale!!.contains("en-US")) "Kamyroll English (US)" else "Kamyroll Hardsub English (US)"
-                generateM3u8(
-                    this.name,
-                    urlstream,
-                    ""
-                ).forEach { sub ->
-                    callback(
-                        ExtractorLink(
-                            this.name,
-                            name,
-                            sub.url,
-                            "",
-                            getQualityFromName(sub.quality.toString()),
-                            true
-                        )
-                    )
-                }
+                getKamyStream(urlstream, name, callback)
             }
         }
         return true

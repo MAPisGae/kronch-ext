@@ -367,7 +367,7 @@ class KamyrollESProvider: MainAPI() {
                     //nothing to filter out non HD eps
                 } else if ((dubTitle!!.contains("Spanish") && dub == true)) {
                     dubeps.add(ep)
-                } else if (dub == false) {
+                } else if (!seasonTitle.contains(Regex("Dub"))) {
                     eps.add(ep)
                 }
             }
@@ -378,7 +378,7 @@ class KamyrollESProvider: MainAPI() {
             this.plot = description
             this.tags = tags
             this.year = year
-            this.posterUrl = poster
+            this.backgroundPosterUrl = poster
         }
     }
 
@@ -400,6 +400,28 @@ class KamyrollESProvider: MainAPI() {
         @JsonProperty("hardsub_locale" ) var hardsubLocale : String? = null,
         @JsonProperty("url"            ) var url           : String? = null
     )
+    suspend fun getKamyStream(
+        streamLink: String,
+        name: String,
+        callback: (ExtractorLink) -> Unit
+    )  {
+        return generateM3u8(
+            this.name,
+            streamLink,
+            ""
+        ).forEach { sub ->
+            callback(
+                ExtractorLink(
+                    this.name,
+                    name,
+                    sub.url,
+                    "",
+                    getQualityFromName(sub.quality.toString()),
+                    true
+                )
+            )
+        }
+    }
 
     override suspend fun loadLinks(
         data: String,
@@ -414,27 +436,13 @@ class KamyrollESProvider: MainAPI() {
                 "channel_id" to "crunchyroll",
                 "type" to "adaptive_hls",
             )).parsed<KamyStreams>()
-        println(streamsrequest)
         streamsrequest.streams.forEach {
             val urlstream = it.url!!
+            if ((it.audioLocale!!.contains(Regex("ja-JP|zh-CN")) && it.hardsubLocale.isNullOrEmpty()))
+                getKamyStream(urlstream, "Kamyroll RAW", callback)
             if ((it.hardsubLocale!!.contains(Regex("es-ES|es-419"))|| it.audioLocale!!.contains(Regex("es-ES|es-419")))) {
                 val name = if (it.audioLocale!!.contains(Regex("es-ES|es-419"))) "Kamyroll Español" else "Kamyroll Hardsub Español"
-                generateM3u8(
-                    this.name,
-                    urlstream,
-                    ""
-                ).forEach { sub ->
-                    callback(
-                        ExtractorLink(
-                            this.name,
-                            name,
-                            sub.url,
-                            "",
-                            getQualityFromName(sub.quality.toString()),
-                            true
-                        )
-                    )
-                }
+                getKamyStream(urlstream, name, callback)
             }
         }
         return true
