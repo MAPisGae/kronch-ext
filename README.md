@@ -2,8 +2,6 @@
 
 To use it in the app copy this [link](https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/master/repo.json)
 
-or touch [here](cloudstreamrepo://raw.githubusercontent.com/Stormunblessed/stormunblessed-cs3/master/repo.json)
-
 Plugin json:https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/builds/plugins.json
 
 ## Attribution
