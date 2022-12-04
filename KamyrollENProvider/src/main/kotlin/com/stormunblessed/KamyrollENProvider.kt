@@ -351,6 +351,7 @@ class KamyrollENProvider: MainAPI() {
         val test = seasonsresponse.items.forEach {
             val dubTitle = it.title
             it.episodes.forEach {
+                val isclip = it.isClip == true
                 val seasonTitle = it.seasonTitle
                 val dub = it.isDubbed
                 val eptitle = it.title
@@ -368,7 +369,7 @@ class KamyrollENProvider: MainAPI() {
                     name = realeptitle,
                     posterUrl = epthumb,
                 )
-                if (seasonTitle!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))) {
+                if (seasonTitle!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island")) || isclip) {
                     //nothing to filter out non HD eps
                 } else if ((dubTitle!!.contains("English") && dub == true)) {
                     dubeps.add(ep)

@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 6
+version = 1
 
 
 cloudstream {
-    language = "es"
+    language = "de"
     // All of these properties are optional, you can safely remove them
 
-    description = "Observa todos los animes de crunchyroll a través de la API Kamyroll, este proveedor solo mostrará anime subtitulado/doblado en español"
+    description = "Schauen Sie sich alle Crunchyroll-Anime über die Kamyroll-API an. Dieser Anbieter zeigt nur Anime mit deutschen Untertiteln/Synchronisationen."
     authors = listOf("Stormunblessed")
 
     /**
