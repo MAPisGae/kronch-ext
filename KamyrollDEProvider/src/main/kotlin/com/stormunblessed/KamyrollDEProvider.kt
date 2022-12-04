@@ -8,7 +8,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper.Companion.generateM3u8
 import com.lagradost.cloudstream3.utils.getQualityFromName
 
-class KamyrollProvider: MainAPI() {
+class KamyrollDEProvider: MainAPI() {
     companion object {
         var latestHeader: Map<String, String> = emptyMap()
         var latestKrunchyHeader: Map<String, String> = emptyMap()
