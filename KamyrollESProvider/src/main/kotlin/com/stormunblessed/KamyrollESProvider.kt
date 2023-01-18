@@ -413,14 +413,14 @@ class KamyrollESProvider: MainAPI() {
         return generateM3u8(
             this.name,
             streamLink,
-            ""
+            "https://static.crunchyroll.com/"
         ).forEach { sub ->
             callback(
                 ExtractorLink(
                     this.name,
                     name,
                     sub.url,
-                    "",
+                    "https://static.crunchyroll.com/",
                     getQualityFromName(sub.quality.toString()),
                     true
                 )
@@ -449,6 +449,36 @@ class KamyrollESProvider: MainAPI() {
                 val name = if (it.audioLocale!!.contains(Regex("es-ES|es-419"))) "Kamyroll Español" else "Kamyroll Hardsub Español"
                 getKamyStream(urlstream, name, callback)
             }
+        }
+        streamsrequest.subtitles.forEach {
+            val suburl = it.url!!
+            //Thanks to https://github.com/saikou-app/saikou/blob/e5db3e00dc32ed1c2d14de43de0c18bf79f5da43/app/src/main/java/ani/saikou/parsers/anime/Kamyroll.kt#L137
+            val lang= when (it.locale){
+                "ja-JP" -> "[ja-JP] Japanese"
+                "en-US" -> "[en-US] English"
+                "de-DE" -> "[de-DE] German"
+                "es-ES" -> "[es-ES] Spanish"
+                "es-419" -> "[es-419] Spanish"
+                "fr-FR" -> "[fr-FR] French"
+                "it-IT" -> "[it-IT] Italian"
+                "pt-BR" -> "[pt-BR] Portuguese (Brazil)"
+                "pt-PT" -> "[pt-PT] Portuguese (Portugal)"
+                "ru-RU" -> "[ru-RU] Russian"
+                "zh-CN" -> "[zh-CN] Chinese (Simplified)"
+                "tr-TR" -> "[tr-TR] Turkish"
+                "ar-ME" -> "[ar-ME] Arabic"
+                "ar-SA" -> "[ar-SA] Arabic (Saudi Arabia)"
+                "uk-UK" -> "[uk-UK] Ukrainian"
+                "he-IL" -> "[he-IL] Hebrew"
+                "pl-PL" -> "[pl-PL] Polish"
+                "ro-RO" -> "[ro-RO] Romanian"
+                "sv-SE" -> "[sv-SE] Swedish"
+                ""      -> ""
+                else -> "[${it.locale}] "
+            }
+            subtitleCallback(
+                SubtitleFile(lang, suburl)
+            )
         }
         return true
     }
