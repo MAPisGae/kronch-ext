@@ -42,8 +42,8 @@ class KamyrollDEProvider: MainAPI() {
 
     private suspend fun getToken(): Map<String, String> {
         //Thanks to https://github.com/saikou-app/saikou/blob/main/app/src/main/java/ani/saikou/parsers/anime/Kamyroll.kt
-        val tokenrequest = app.post("$mainUrl/auth/v1/token",
-            data = mapOf(
+        val tokenrequest = app.get("$mainUrl/auth/v1/token",
+            params = mapOf(
                 "device_id" to "com.service.data",
                 "device_type" to "cloudstream",
                 "access_token" to "HMbQeThWmZq4t7w",
