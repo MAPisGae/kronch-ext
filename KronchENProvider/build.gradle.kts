@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 8
+version = 1
 
 
 cloudstream {
-    language = "es"
+    language = "en"
     // All of these properties are optional, you can safely remove them
 
-    description = "Observa todos los animes de crunchyroll a través de la API Kamyroll, este proveedor solo mostrará anime subtitulado/doblado en español"
+    description = "Watch that site with help from the Consumet API, this extension will only display english dubbed/hardsubbed anime"
     authors = listOf("Stormunblessed")
 
     /**
@@ -22,5 +22,5 @@ cloudstream {
         "OVA",
     )
 
-    iconUrl = "https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/K-14-11-2022.png"
+    iconUrl = "https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/kronch.png"
 }
