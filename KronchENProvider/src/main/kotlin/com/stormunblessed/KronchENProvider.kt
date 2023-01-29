@@ -574,7 +574,7 @@ class KronchENProvider: MainAPI() {
         val poster = posterRegex2.find(posterstring2)?.destructured?.component1() ?: ""
         val description = metadainfo.data.first().description
 
-        return newAnimeLoadResponse(title!!, seriesIDSuper!!, tvtype){
+        return newAnimeLoadResponse(title!!, seriesIDSuper!!, TvType.Anime){
             if (tvTypeAnime) {
                 val krunchyDUB = getKrunchyDubEpisodes(seriesIDSuper)
                 val krunchySUB = getKrunchySubEpisodes(seriesIDSuper)
