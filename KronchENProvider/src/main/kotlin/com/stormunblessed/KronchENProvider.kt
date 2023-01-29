@@ -356,12 +356,16 @@ class KronchENProvider: MainAPI() {
                             val posterstring = it.images?.thumbnail.toString()
                             val posterRegex = Regex("PosterTall\\(height=338,.*source=(.*),.*type=thumbnail,.width=600\\)")
                             val poster = posterRegex.find(posterstring)?.destructured?.component1()
+                            val epnum = it.episodeNumber
+                            val season = it.seasonNumber
                             dubEp.add(
                                 Episode(
                                     name = title,
                                     data = epID!!,
                                     description = epdesc,
-                                    posterUrl = poster
+                                    posterUrl = poster,
+                                    episode = epnum,
+                                    season = season
                                 )
                             )
                         }
@@ -393,12 +397,17 @@ class KronchENProvider: MainAPI() {
                             val posterstring = it.images?.thumbnail.toString()
                             val posterRegex = Regex("PosterTall\\(height=338,.*source=(.*),.*type=thumbnail,.width=600\\)")
                             val poster = posterRegex.find(posterstring)?.destructured?.component1()
+                            val epnum = it.episodeNumber
+                            val season = it.seasonNumber
+
                             subEp.add(
                                 Episode(
                                     name = title,
                                     data = epID!!,
                                     description = epdesc,
-                                    posterUrl = poster
+                                    posterUrl = poster,
+                                    episode = epnum,
+                                    season = season
                                 )
                             )
                         }
@@ -417,11 +426,15 @@ class KronchENProvider: MainAPI() {
                     val posterstring = it.images?.thumbnail.toString()
                     val posterRegex = Regex("PosterTall\\(height=338,.*source=(.*),.*type=thumbnail,.width=600\\)")
                     val poster = posterRegex.find(posterstring)?.destructured?.component1()
+                    val epnum = it.episodeNumber
+                    val season = it.seasonNumber
                     val ep = Episode(
                         name = title,
                         data = epID!!,
                         description = epdesc,
-                        posterUrl = poster
+                        posterUrl = poster,
+                        episode = epnum,
+                        season = season
                     )
                     if (seasontitle!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))) {
                         //nothing, to filter out non HD EPS
