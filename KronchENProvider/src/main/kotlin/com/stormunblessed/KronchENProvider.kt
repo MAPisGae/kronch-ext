@@ -337,6 +337,7 @@ class KronchENProvider: MainAPI() {
         return parseJson(responsText)
     }
 
+    //All of this can be simpliefied, but im lazy to do eh change right now
     private suspend fun getKrunchyDubEpisodes(fixedID: String?): ArrayList<Episode> {
         val krunchyResponse = getKrunchySeasonsInfo(fixedID)
         val dubEp = ArrayList<Episode>()
@@ -384,6 +385,7 @@ class KronchENProvider: MainAPI() {
         krunchyresponse.data.apmap {
             val versions = it.versions
             val audiolocaleSUPER = it.audioLocale
+            val seriesIDSUPER = it.id
             if (!versions.isNullOrEmpty()) {
                 it.versions!!.map {
                     val audioLocale = it.audioLocale
@@ -415,7 +417,7 @@ class KronchENProvider: MainAPI() {
                 }
             }
 
-            if (!audiolocaleSUPER.isNullOrEmpty() && audiolocaleSUPER.contains(Regex("ja-JP|zh-CN")) && versions == null) {
+            if (!seriesIDSUPER.isNullOrEmpty() || audiolocaleSUPER!!.contains(Regex("ja-JP|zh-CN"))) {
                 val seriesID = it.id
                 val seasontitle = it.title
                 val responseSUBS = app.get("$krunchyapi/content/v2/cms/seasons/$seriesID/episodes?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchySeasonsInfo>()
@@ -423,6 +425,7 @@ class KronchENProvider: MainAPI() {
                     val title = it.title
                     val epID = it.id
                     val epdesc = it.description
+                    val episodesAudio = it.audioLocale
                     val posterstring = it.images?.thumbnail.toString()
                     val posterRegex = Regex("PosterTall\\(height=338,.*source=(.*),.*type=thumbnail,.width=600\\)")
                     val poster = posterRegex.find(posterstring)?.destructured?.component1()
@@ -438,7 +441,7 @@ class KronchENProvider: MainAPI() {
                     )
                     if (seasontitle!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))) {
                         //nothing, to filter out non HD EPS
-                    } else if (!seasontitle.contains(Regex("Dub"))) {
+                    } else if (episodesAudio!!.contains(Regex("ja-JP|zh-CN"))) {
                         subEp.add(ep)
                     }
                 }
