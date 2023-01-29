@@ -16,7 +16,7 @@ class KronchENProvider: MainAPI() {
         private const val krunchyapi = "https://beta-api.crunchyroll.com"
         private const val kronchyConsumetapi = "https://api.consumet.org/anime/crunchyroll"
     }
-    override var name = "Kronch EN"
+    override var name = "Kronch"
     override var mainUrl = "https://consumet.org"
     override val instantLinkLoading = false
     override val hasMainPage = true
