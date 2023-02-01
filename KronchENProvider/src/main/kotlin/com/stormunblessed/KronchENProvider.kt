@@ -380,7 +380,7 @@ class KronchENProvider: MainAPI() {
             year = resp.seriesLaunchYear
         }
 
-        return newAnimeLoadResponse(title, mainUrl, TvType.Anime) {
+        return newAnimeLoadResponse(title, seriesIDSuper, TvType.Anime) {
             if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,subEps)
             if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubEps)
             if (isMovie) addEpisodes(DubStatus.Subbed, getMovie(seriesIDSuper))
