@@ -351,7 +351,7 @@ class KronchENProvider: MainAPI() {
                 it.key.contains("subbed")
             }
             val dubJson = response.episodes?.filter {
-                it.key.contains("English") || it.key.contains("Dub")
+                it.key.startsWith("English") || it.key.startsWith("Dub")
             }
             subJson?.values?.map {
                 it.map {
