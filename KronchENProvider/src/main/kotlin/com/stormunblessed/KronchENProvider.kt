@@ -348,7 +348,7 @@ class KronchENProvider: MainAPI() {
             backposter = response.cover.toString()
             tags = response.genres
             val subJson = response.episodes?.filter {
-                it.key.contains("subbed")
+                it.key.contains("subbed", ignoreCase = true)
             }
             val dubJson = response.episodes?.filter {
                 it.key.startsWith("English") || it.key.startsWith("Dub")
