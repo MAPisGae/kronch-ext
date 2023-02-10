@@ -406,15 +406,11 @@ class KronchENProvider: MainAPI() {
         var poster = ""
         var year = "".toIntOrNull()
         var backposter = ""
+        val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
         val recommendations = ArrayList<SearchResponse>()
         if (!isMovie) {
             val response = getKronchSeasonsInfo(seriesIDSuper, "series")
             getKronchToken()
-            val resptwo = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchySeasonsInfo>()
-            val subs2 = resptwo.data.filter {
-                !it.seriesId.isNullOrEmpty() || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN"
-                        || !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
-            }
             title = response.title.toString()
             plot = response.description.toString()
             year = response.releaseDate
@@ -437,13 +433,13 @@ class KronchENProvider: MainAPI() {
                 it.key.contains("subbed", ignoreCase = true)
             }
             val dubJson = response.episodes?.filter {
-                it.key.startsWith("English") || it.key.startsWith("Dub")
+                it.key.contains("English") || it.key.startsWith("Dub")
             }
 
             subJson?.values?.map {
                 it.map {
                     val hd = it.isHD == false
-                    if (title == "One piece" && hd) {
+                    if (title == "One Piece" && hd) {
                         //nothing
                     } else {
                         subEps.add(getepisode(it, true))
@@ -455,11 +451,18 @@ class KronchENProvider: MainAPI() {
                     dubEps.add(getepisode(it, false))
                 }
             }
-            subs2.apmap {
-                val seriesID = it.id
-                val sss = app.get("$krunchyapi/content/v2/cms/seasons/$seriesID/episodes?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchySeasonsInfo>()
-                sss.data.map {
-                    subEps.add(getepisode(it, true))
+            if (title == "One Piece") {
+                val resptwo = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchySeasonsInfo>()
+                val subs2 = resptwo.data.filter {
+                    !it.seriesId.isNullOrEmpty() || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN"
+                            || !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
+                }
+                subs2.apmap {
+                    val seriesID = it.id
+                    val sss = app.get("$krunchyapi/content/v2/cms/seasons/$seriesID/episodes?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchySeasonsInfo>()
+                    sss.data.map {
+                        subEps.add(getepisode(it, true))
+                    }
                 }
             }
         }
@@ -478,9 +481,9 @@ class KronchENProvider: MainAPI() {
             tags = resp.keywords
             year = resp.seriesLaunchYear
         }
-        return newAnimeLoadResponse(title, seriesIDSuper!!, TvType.Anime) {
-            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,subEps)
-            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubEps)
+        return newAnimeLoadResponse(title, infodata, TvType.Anime) {
+            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,subEps.distinct().toList())
+            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubEps.distinct().toList())
             if (isMovie) addEpisodes(DubStatus.Subbed, getMovie(seriesIDSuper))
             this.plot = plot
             this.tags = tags
