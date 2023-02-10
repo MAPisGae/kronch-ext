@@ -436,7 +436,7 @@ class KronchENProvider: MainAPI() {
                 it.key.contains("subbed", ignoreCase = true)
             }
             val dubJson = response.episodes?.filter {
-                it.key.contains("English") || it.key.startsWith("Dub")
+                it.key.contains("English") || it.key.startsWith("Dub") || it.key.contains(Regex("\\d+nd.*Season.*\\d+"))
             }
 
             subJson?.map {
@@ -448,7 +448,7 @@ class KronchENProvider: MainAPI() {
                 }
             }
             dubJson?.map {
-                val key = it.key.contains("English") || it.key.startsWith("Dub", ignoreCase = true)
+                val key = it.key.contains("English") || it.key.startsWith("Dub", ignoreCase = true) || it.key.contains(Regex("\\d+nd.*Season.*\\d+"))
                 if (key) {
                     it.value.map {
                         dubEps.add(getepisode(it, false))
