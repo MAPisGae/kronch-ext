@@ -354,6 +354,7 @@ class KronchENProvider: MainAPI() {
         val dataep = "{\"id\":\"$epID\",\"issub\":$isSubbed}"
         val poster = posterRegex.find(posterstring)?.destructured?.component1()
         val epthumb = data?.image ?: poster
+        //println("TITLE $eptitle $season $epnum")
         return Episode(
             dataep,
             eptitle!!,
@@ -407,7 +408,7 @@ class KronchENProvider: MainAPI() {
         var year = "".toIntOrNull()
         var backposter = ""
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
-        val recommendations = ArrayList<SearchResponse>()
+        //val recommendations = ArrayList<SearchResponse>()
         if (!isMovie) {
             val response = getKronchSeasonsInfo(seriesIDSuper, "series")
             getKronchToken()
@@ -418,16 +419,18 @@ class KronchENProvider: MainAPI() {
             backposter = response.cover.toString()
             tags = response.genres
 
+            /*
+            Removed cause its bugged
             response.recommendations.map {
-                val name = it.title
-                val img = it.image
-                val id = it.id
-                val datainfo = "{\"tvtype\":\"series\",\"seriesID\":\"$id\"}"
-                recommendations.add(
-                    newAnimeSearchResponse(name!!, datainfo){
-                        this.posterUrl = img
-                    })
-            }
+                 val name = it.title
+                 val img = it.image
+                 val id = it.id
+                 val datainfo = "{\"tvtype\":\"series\",\"seriesID\":\"$id\"}"
+                 recommendations.add(
+                     newAnimeSearchResponse(name!!, datainfo){
+                         this.posterUrl = img
+                     })
+             } */
 
             val subJson = response.episodes?.filter {
                 it.key.contains("subbed", ignoreCase = true)
@@ -436,19 +439,20 @@ class KronchENProvider: MainAPI() {
                 it.key.contains("English") || it.key.startsWith("Dub")
             }
 
-            subJson?.values?.map {
-                it.map {
-                    val hd = it.isHD == false
-                    if (title == "One Piece" && hd) {
-                        //nothing
-                    } else {
+            subJson?.map {
+                val key = it.key.contains("subbed", ignoreCase = true)
+                if (key) {
+                    it.value.map {
                         subEps.add(getepisode(it, true))
                     }
                 }
             }
-            dubJson?.values?.map {
-                it.map {
-                    dubEps.add(getepisode(it, false))
+            dubJson?.map {
+                val key = it.key.contains("English") || it.key.startsWith("Dub", ignoreCase = true)
+                if (key) {
+                    it.value.map {
+                        dubEps.add(getepisode(it, false))
+                    }
                 }
             }
             if (title == "One Piece") {
@@ -482,15 +486,15 @@ class KronchENProvider: MainAPI() {
             year = resp.seriesLaunchYear
         }
         return newAnimeLoadResponse(title, infodata, TvType.Anime) {
-            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,subEps.distinct().toList())
-            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubEps.distinct().toList())
+            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,subEps)
+            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubEps)
             if (isMovie) addEpisodes(DubStatus.Subbed, getMovie(seriesIDSuper))
             this.plot = plot
             this.tags = tags
             this.year = year
             this.posterUrl = poster
             this.backgroundPosterUrl = backposter
-            this.recommendations = recommendations
+            //this.recommendations = recommendations
         }
 
     }
