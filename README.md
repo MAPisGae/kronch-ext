@@ -1,6 +1,6 @@
 # `Kamyroll CS3`
 
-To use it in the app copy this [link](https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/master/repo.json)
+To use it in the app copy this [link](https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/master/repo.json) or click [here](https://l.cloudstream.cf/dir_kamy)
 
 Plugin json:https://raw.githubusercontent.com/Stormunblessed/kamy-cs3/builds/plugins.json
 
