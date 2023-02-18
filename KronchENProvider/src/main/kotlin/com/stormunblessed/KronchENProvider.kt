@@ -631,6 +631,7 @@ class KronchENProvider: MainAPI() {
 
     data class Testt (
         @JsonProperty("adaptive_hls")val adaptiveHLS: Map<String, BetaKronchS>? = null,
+        @JsonProperty("vo_adaptive_hls")val vrvHLS: Map<String, BetaKronchS>? = null,
     )
 
 
@@ -653,14 +654,17 @@ class KronchENProvider: MainAPI() {
         val mediaId = parsedata.id
         val issub = parsedata.issub == true
         val response = app.get("$krunchyapi/cms/v2${consuToken.bucket}/videos/$mediaId/streams?Policy=${consuToken.policy}&Signature=${consuToken.signature}&Key-Pair-Id=${consuToken.keyPairId}").parsed<BetaKronchStreams>()
-        response.streams?.adaptiveHLS?.entries?.filter {
+        val aa = response.streams?.vrvHLS ?: response.streams?.adaptiveHLS ?: return false
+
+        aa.entries.filter {
             it.key == "en-US" || it.key.isEmpty()
-        }?.map {
+        }.map {
             it.value
-        }?.apmap {
+        }.apmap {
             val raw = it.hardsubLocale?.isEmpty()
             val hardsubinfo = it.hardsubLocale?.contains("en-US")
-            val name = if (raw == false && issub) "Kronch Hardsub English (US)" else if (raw == true && issub) "Kronch RAW" else "Kronch English"
+            val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
+            val name = if (raw == false && issub) "Kronch$vvv Hardsub English (US)" else if (raw == true && issub) "Kronch$vvv RAW" else "Kronch$vvv English"
             if (hardsubinfo == true && issub) {
                 getKronchStream(it.url!!, name, callback)
             }
@@ -676,7 +680,7 @@ class KronchENProvider: MainAPI() {
                 "en-US" -> "English"
                 "de-DE" -> "German"
                 "es-ES" -> "Spanish"
-                "es-419" -> "Spanish 2"
+                "es-419" -> "Spanish LAT"
                 "fr-FR" -> "French"
                 "it-IT" -> "Italian"
                 "pt-BR" -> "Portuguese (Brazil)"

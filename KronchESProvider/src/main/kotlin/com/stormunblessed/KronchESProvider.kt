@@ -631,6 +631,7 @@ class KronchESProvider: MainAPI() {
 
     data class Testt (
         @JsonProperty("adaptive_hls")val adaptiveHLS: Map<String, BetaKronchS>? = null,
+        @JsonProperty("vo_adaptive_hls")val vrvHLS: Map<String, BetaKronchS>? = null,
     )
 
 
@@ -653,18 +654,21 @@ class KronchESProvider: MainAPI() {
         val mediaId = parsedata.id
         val issub = parsedata.issub == true
         val response = app.get("$krunchyapi/cms/v2${consuToken.bucket}/videos/$mediaId/streams?Policy=${consuToken.policy}&Signature=${consuToken.signature}&Key-Pair-Id=${consuToken.keyPairId}").parsed<BetaKronchStreams>()
-        response.streams?.adaptiveHLS?.entries?.filter {
+        val aa = response.streams?.vrvHLS ?: response.streams?.adaptiveHLS ?: return false
+
+        aa.entries.filter {
             it.key == "es-ES" || it.key == "es-419" || it.key.isEmpty()
-        }?.map {
+        }.map {
             it.value
-        }?.apmap {
+        }.apmap {
             val raw = it.hardsubLocale?.isEmpty()
             val hardsubinfo = it.hardsubLocale?.contains(Regex("es-ES|es-419"))
             val hardss = it.hardsubLocale
-            val name = if (raw == false && issub && hardss?.contains("es-ES") == true) "Kronch Hardsub Español España"
-            else if (raw == false && issub && hardss?.contains("es-419") == true) "Kronch Hardsub Español LAT"
-            else if (!issub) "Kronch Español"
-            else "Kronch RAW"
+            val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
+            val name = if (raw == false && issub && hardss?.contains("es-ES") == true) "Kronch$vvv Hardsub Español España"
+            else if (raw == false && issub && hardss?.contains("es-419") == true) "Kronch$vvv Hardsub Español LAT"
+            else if (!issub) "Kronch$vvv Español"
+            else "Kronch$vvv RAW"
 
             if (hardsubinfo == true && issub) {
                 getKronchStream(it.url!!, name, callback)
@@ -681,7 +685,7 @@ class KronchESProvider: MainAPI() {
                 "en-US" -> "English"
                 "de-DE" -> "German"
                 "es-ES" -> "Spanish"
-                "es-419" -> "Spanish 2"
+                "es-419" -> "Spanish LAT"
                 "fr-FR" -> "French"
                 "it-IT" -> "Italian"
                 "pt-BR" -> "Portuguese (Brazil)"
