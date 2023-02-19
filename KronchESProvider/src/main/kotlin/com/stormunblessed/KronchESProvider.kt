@@ -353,17 +353,18 @@ class KronchESProvider: MainAPI() {
         @JsonProperty("data"  ) var data  : ArrayList<EpisodesData> = arrayListOf(),
     )
 
-     data class Versions (
-         @JsonProperty("audio_locale" ) var audioLocale : String?  = null,
-         @JsonProperty("guid"         ) var guid        : String?  = null,
-         @JsonProperty("original"     ) var original    : Boolean? = null,
-         @JsonProperty("variant"      ) var variant     : String?  = null
-     )
+    data class Versions (
+        @JsonProperty("audio_locale" ) var audioLocale : String?  = null,
+        @JsonProperty("guid"         ) var guid        : String?  = null,
+        @JsonProperty("original"     ) var original    : Boolean? = null,
+        @JsonProperty("variant"      ) var variant     : String?  = null
+    )
 
 
-    private suspend fun getKronchSeasonsInfo(fixedID: String?, type: String?): ConsumetMetadata {
-        val url = "$kronchyConsumetapi/info?id=$fixedID&mediaType=$type&fetchAllSeasons=true"
-        val responsText = app.get(url).text
+    private suspend fun getKronchSeasonsInfo(fixedID: String?, type: String?): KrunchyLoadMain {
+        getConsuToken()
+        val url = "$krunchyapi/content/v2/cms/$type/$fixedID?locale=es-ES"
+        val responsText = app.get(url, headers = latestKrunchyHeader).text
         return parseJson(responsText)
     }
     private fun getEpisode(data: BetaKronchData?, isSubbed: Boolean?):Episode{
@@ -472,6 +473,42 @@ class KronchESProvider: MainAPI() {
     )
 
 
+    data class BetaKronchRecsMain (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<BetaKronchRecData> = arrayListOf(),
+    )
+    data class BetaKronchRecData (
+        @JsonProperty("id"                  ) var id                : String?         = null,
+        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
+        @JsonProperty("title"               ) var title             : String?         = null,
+        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
+        @JsonProperty("description"         ) var description       : String?         = null,
+        @JsonProperty("type"                ) var type              : String?         = null,
+        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
+        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
+        @JsonProperty("new"                 ) var new               : Boolean?        = null,
+        @JsonProperty("slug"                ) var slug              : String?         = null,
+        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
+        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
+        @JsonProperty("external_id"         ) var externalId        : String?         = null,
+    )
+
+
+    private suspend fun getRecommendations(seriesId: String?): List<SearchResponse>?{
+        getConsuToken()
+        val recsurl = "$krunchyapi/content/v2/discover/similar_to/$seriesId?locale=es-ES&n=30"
+        val res = app.get(recsurl, headers = latestKrunchyHeader).parsedSafe<BetaKronchRecsMain>()
+        return res?.data?.map { rec ->
+            val sID = rec.id
+            val rTitle = rec.title ?: ""
+            val poster = rec.images?.posterTall?.map { it[5].source }?.first() ?: ""
+            val rType = rec.type
+            val rdata = "{\"tvtype\":\"$rType\",\"seriesID\":\"$sID\"}"
+            newAnimeSearchResponse(rTitle,rdata){
+                this.posterUrl = poster
+            }
+        }
+    }
     override suspend fun load(url: String): LoadResponse {
         val fixedData = url.replace("https://www.crunchyroll.com/","")
         val parsedData = parseJson<LoadDataInfo>(fixedData)
@@ -489,16 +526,16 @@ class KronchESProvider: MainAPI() {
         var year = "".toIntOrNull()
         var backposter = ""
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
-        //val recommendations = ArrayList<SearchResponse>()
+        val recommendations = getRecommendations(seriesIDSuper)
         if (!isMovie) {
-            val response = getKronchSeasonsInfo(seriesIDSuper, "series")
+            val response = getKronchSeasonsInfo(seriesIDSuper, "series").data.first()
             getConsuToken()
             title = response.title.toString()
             plot = response.description.toString()
-            year = response.releaseDate
-            poster = response.image.toString()
-            backposter = response.cover.toString()
-            tags = response.genres
+            year = response.seriesLaunchYear
+            poster = response.images?.posterTall?.map { it[6].source }?.first() ?: ""
+            backposter = response.images?.posterWide?.map { it[7].source }?.first() ?: ""
+            tags = response.keywords ?: emptyList()
             val nn = app.get("https://beta-api.crunchyroll.com/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES", headers = latestKrunchyHeader).parsed<BetaKronch>()
             val inn = nn.data.filter {
                 !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
@@ -565,7 +602,7 @@ class KronchESProvider: MainAPI() {
             this.year = year
             this.posterUrl = poster
             this.backgroundPosterUrl = backposter
-            //this.recommendations = recommendations
+            this.recommendations = recommendations
         }
 
     }
