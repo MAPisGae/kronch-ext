@@ -552,7 +552,6 @@ class KronchENProvider: MainAPI() {
                     versions.filter {
                         it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
                     }.apmap {
-                        getConsuToken()
                         val guid = it.guid
                         val res = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=en-US", headers = latestKrunchyHeader).parsed<BetaKronch>()
                         res.data.filter {
