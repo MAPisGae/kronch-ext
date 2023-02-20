@@ -283,7 +283,7 @@ class KronchESProvider: MainAPI() {
         val aaseason = "$season-$epnum"
         val seasonid =aaseason.let { str ->
             str.split("-").mapNotNull { subStr -> subStr.toIntOrNull() }
-        }
+        }.sorted()
         val isValid = seasonid.size == 2
         val aaepisode = if (isValid) seasonid.getOrNull(1) else null
         val aaseasontwo = if (isValid) seasonid.getOrNull(0) else null
