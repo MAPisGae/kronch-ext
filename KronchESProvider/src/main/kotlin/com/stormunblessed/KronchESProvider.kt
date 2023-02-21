@@ -189,7 +189,7 @@ class KronchESProvider: MainAPI() {
         val items = ArrayList<HomePageList>()
         val urls = listOf(
             Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=popularity", "Popular"),
-            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Newly Added")
+            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Recientes")
         )
         getKronchToken()
 
@@ -431,50 +431,52 @@ class KronchESProvider: MainAPI() {
         val tags = response.keywords
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
         val recommendations = getRecommendations(seriesIDSuper)
-        getConsuToken()
-        val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
-        if (nn.data.isEmpty()) throw ErrorLoadingException("No se podido obtener los episodios, intenta otra vez")
-        val inn = nn.data.filter {
-            !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
-            //|| it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
-        }
-        val innversions = inn.filter {
-            !it.versions.isNullOrEmpty()
-                    || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
-        }
-
-        inn.apmap { main ->
-            val mainID = main.id
-            val res = app.get("$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
-            if (res.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
-            val restwo = res.data.filter {
-                it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale?.isEmpty() == true
+        if (tvType == TvType.Anime) {
+            getConsuToken()
+            val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+            if (nn.data.isEmpty()) throw ErrorLoadingException("No se podido obtener los episodios, intenta otra vez")
+            val inn = nn.data.filter {
+                !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
+                //|| it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
             }
-            restwo.map { second ->
-                val clip = second.isClip == false
-                if (clip) {
-                    subEps.add(second.togetNormalEps( true))
+            val innversions = inn.filter {
+                !it.versions.isNullOrEmpty()
+                        || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "es-ES" || it.audioLocale?.isEmpty() == true
+            }
+
+            inn.apmap { main ->
+                val mainID = main.id
+                val res = app.get("$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+                if (res.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
+                val restwo = res.data.filter {
+                    it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale?.isEmpty() == true
+                }
+                restwo.map { second ->
+                    val clip = second.isClip == false
+                    if (clip) {
+                        subEps.add(second.togetNormalEps( true))
+                    }
                 }
             }
-        }
-        innversions.map {ve ->
-            val versionsfiltered = ve.versions?.filter {
-                (it.audioLocale?.contains(Regex("ja-JP|zh-CN|es-ES|es-419")) == true || it.audioLocale.isNullOrEmpty())
-            }
-            versionsfiltered?.apmap { vers ->
-                val guid = vers.guid
-                val resv = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
-                if (resv.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
-                resv.data.map { pss ->
-                    val clip = pss.isClip == false
-                    val audioss = pss.audioLocale
-                    if (audioss == "es-ES" || audioss == "es-419" && clip) {
-                        val dubss = pss.togetNormalEps(true)
-                        dubEps.add(dubss)
-                    }
-                    if (audioss.isNullOrEmpty() || audioss == "ja-JP" && clip) {
-                        val subbs =pss.togetNormalEps( true)
-                        subEps.add(subbs)
+            innversions.map {ve ->
+                val versionsfiltered = ve.versions?.filter {
+                    (it.audioLocale?.contains(Regex("ja-JP|zh-CN|es-ES|es-419")) == true || it.audioLocale.isNullOrEmpty())
+                }
+                versionsfiltered?.apmap { vers ->
+                    val guid = vers.guid
+                    val resv = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+                    if (resv.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
+                    resv.data.map { pss ->
+                        val clip = pss.isClip == false
+                        val audioss = pss.audioLocale
+                        if (audioss == "es-ES" || audioss == "es-419" && clip) {
+                            val dubss = pss.togetNormalEps(false)
+                            dubEps.add(dubss)
+                        }
+                        if (audioss.isNullOrEmpty() || audioss == "ja-JP" && clip) {
+                            val subbs =pss.togetNormalEps( true)
+                            subEps.add(subbs)
+                        }
                     }
                 }
             }

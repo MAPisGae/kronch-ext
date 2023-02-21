@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 8
+version = 9
 
 
 cloudstream {
     language = "es"
     // All of these properties are optional, you can safely remove them
 
-    description = "Observa el anime de ese sitio con la ayuda de la API Consumet, este proveedor solo mostrará anime subtitulado/doblado en español, subtítulos de varios idiomas disponibles"
+    description = "Observa el anime de ese sitio con la ayuda de la API Consumet, este proveedor solo mostrará anime subtitulado/doblado en español, subtítulos de varios idiomas disponibles, el catalogo disponible es de los Estados Unidos"
     authors = listOf("Stormunblessed")
 
     /**

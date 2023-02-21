@@ -7,7 +7,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.getQualityFromName
 
-class KronchENProvider: MainAPI() {
+class KronchESGEOProvider: MainAPI() {
 
     companion object {
         //var latestHeader: Map<String, String> = emptyMap()
@@ -19,11 +19,11 @@ class KronchENProvider: MainAPI() {
 
     }
 
-    override var name = "Kronch"
+    override var name = "Kronch ES\uD83C\uDF0E"
     override var mainUrl = "https://www.crunchyroll.com"
     override val instantLinkLoading = false
     override val hasMainPage = true
-    override var lang = "en"
+    override var lang = "es"
     override val supportedTypes = setOf(
         TvType.AnimeMovie,
         TvType.Anime,
@@ -51,14 +51,19 @@ class KronchENProvider: MainAPI() {
         @JsonProperty("bucket"       ) var bucket      : String? = null,
         @JsonProperty("policy"       ) var policy      : String? = null
     )
-    private suspend fun getKronchToken(): Map<String, String> {
+    private suspend fun getKronchGEOToken(): Map<String, String> {
+        val refreshtoken = app.get("https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/refreshtoken.txt").text
         val testingasa = app.post("$krunchyapi/auth/v1/token",
             headers = mapOf(
                 "User-Agent"  to "Crunchyroll/3.26.1 Android/11 okhttp/4.9.2",
                 "Content-Type" to "application/x-www-form-urlencoded",
-                "Authorization" to "Basic aHJobzlxM2F3dnNrMjJ1LXRzNWE6cHROOURteXRBU2Z6QjZvbXVsSzh6cUxzYTczVE1TY1k="
+                "Authorization" to "Basic bnI1NG8wX3EzNmR0N3F3aTljdTU6eU84aXRhaHNob1pDUkFSS2YxcVdrd1psc2txX0VUTGk="
             ),
-            data = mapOf("grant_type" to "client_id")
+            data = mapOf(
+                "refresh_token" to refreshtoken,
+                "grant_type" to "refresh_token",
+                "scope" to "offline_access",
+            )
         ).parsed<KronchyToken>()
         val header = mapOf(
             "Authorization" to "${testingasa.tokenType} ${testingasa.accessToken}"
@@ -69,15 +74,15 @@ class KronchENProvider: MainAPI() {
         return latestKrunchyHeader
     }
 
-    private suspend fun getConsuToken():Map<String, String> {
-        val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
-        val header = mapOf(
-            "Authorization" to "${consuToken.tokenType} ${consuToken.accessToken}"
-        )
-        latestKrunchyHeader = header
-        latestcountryID = consuToken.country!!
-        return latestKrunchyHeader
-    }
+    /* private suspend fun getConsuToken():Map<String, String> {
+         val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
+         val header = mapOf(
+             "Authorization" to "${consuToken.tokenType} ${consuToken.accessToken}"
+         )
+         latestKrunchyHeader = header
+         latestcountryID = consuToken.country!!
+         return latestKrunchyHeader
+     } */
 
     data class PosterTall (
         @JsonProperty("height" ) var height : Int?    = null,
@@ -189,11 +194,10 @@ class KronchENProvider: MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = ArrayList<HomePageList>()
         val urls = listOf(
-            Pair("$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=popularity", "Popular"),
-            Pair("$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=newly_added", "Newly Added")
+            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=popularity", "Popular"),
+            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Recientes")
         )
-        getKronchToken()
-
+        getKronchGEOToken()
         urls.apmap {(url, name) ->
             val res = app.get(url,
                 headers = latestKrunchyHeader
@@ -219,39 +223,54 @@ class KronchENProvider: MainAPI() {
         if (items.size <= 0) throw ErrorLoadingException()
         return HomePageResponse(items)
     }
-
-    data class ConsumetSearch (
-        @JsonProperty("results"     ) var results     : ArrayList<ConsumetSearchResults> = arrayListOf()
+    data class BetaKronchGEOSearch (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<GeoSearchData> = arrayListOf(),
     )
 
-    data class ConsumetSearchResults (
-        @JsonProperty("id"          ) var id          : String?  = null,
-        @JsonProperty("title"       ) var title       : String?  = null,
-        @JsonProperty("type"        ) var type        : String?  = null,
-        @JsonProperty("description" ) var description : String?  = null,
-        @JsonProperty("image"       ) var image       : String?  = null,
-        @JsonProperty("cover"       ) var cover       : String?  = null,
-        @JsonProperty("hasDub"      ) var hasDub      : Boolean? = null,
-        @JsonProperty("hasSub"      ) var hasSub      : Boolean? = null
+    data class GeoSearchData (
+
+        @JsonProperty("items" ) var items : ArrayList<GeoSearchItems> = arrayListOf()
+
     )
 
+    data class GeoSearchItems (
+        @JsonProperty("title"               ) var title             : String?         = null,
+        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
+        @JsonProperty("external_id"         ) var externalId        : String?         = null,
+        @JsonProperty("series_metadata"     ) var seriesMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("type"                ) var type              : String?         = null,
+        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
+        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
+        @JsonProperty("slug"                ) var slug              : String?         = null,
+        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
+        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
+        @JsonProperty("description"         ) var description       : String?         = null,
+        @JsonProperty("id"                  ) var id                : String?         = null,
+        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
+        @JsonProperty("new"                 ) var new               : Boolean?        = null
+    )
     override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$kronchyConsumetapi/$query"
+        getKronchGEOToken()
+        val url = "$krunchyapi/content/v2/discover/search?q=$query&type=series,movie_listing"
         val search = ArrayList<SearchResponse>()
-        val rep = app.get(url).parsed<ConsumetSearch>()
-        rep.results.map { info ->
-            val title = info.title
-            val image = info.image
-            val dubExist = info.hasDub == true
-            val subExist = info.hasSub == true
-            val id = info.id
-            val type = info.type
-            val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
-            search.add(newAnimeSearchResponse(title!!, data) {
-                this.posterUrl = image
-                addDubStatus(dubExist, subExist)
-            })
+        val res = app.get(url, headers = latestKrunchyHeader).parsed<BetaKronchGEOSearch>()
+        res.data.map {
+            it.items.map {info ->
+                val title = info.title
+                val image = info.images?.posterTall?.get(0)?.get(6)?.source ?: ""
+                val dubExist = info.seriesMetadata?.isDubbed ?: false
+                val subExist = info.seriesMetadata?.isDubbed ?: false
+                val id = info.id
+                val type = info.type
+                val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
+                search.add(newAnimeSearchResponse(title!!, data) {
+                    this.posterUrl = image
+                    addDubStatus(dubExist, subExist)
+                })
+            }
         }
+
         return search
     }
 
@@ -269,14 +288,14 @@ class KronchENProvider: MainAPI() {
 
 
     private suspend fun getKronchMetadataInfo(url: String): KrunchyLoadMain {
-        getConsuToken()
+        getKronchGEOToken()
         return app.get(url, headers = latestKrunchyHeader).parsed()
     }
 
     private suspend fun getMovie(id: String?):ArrayList<Episode> {
-        getKronchToken()
+        getKronchGEOToken()
         val movie = ArrayList<Episode>()
-        val metadainfo = app.get("$krunchyapi/content/v2/cms/movie_listings/$id/movies?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchyLoadMain>()
+        val metadainfo = app.get("$krunchyapi/content/v2/cms/movie_listings/$id/movies?locale=es-ES", headers = latestKrunchyHeader).parsed<KrunchyLoadMain>()
         metadainfo.data.map {
             val title = it.title
             val epID = it.id
@@ -381,8 +400,8 @@ class KronchENProvider: MainAPI() {
 
 
     private suspend fun getRecommendations(seriesId: String?): List<SearchResponse>?{
-        getConsuToken()
-        val recsurl = "$krunchyapi/content/v2/discover/similar_to/$seriesId?locale=en-US&n=30"
+        getKronchGEOToken()
+        val recsurl = "$krunchyapi/content/v2/discover/similar_to/$seriesId?locale=es-ES&n=30"
         val res = app.get(recsurl, headers = latestKrunchyHeader).parsedSafe<BetaKronchRecsMain>()
         return res?.data?.map { rec ->
             val sID = rec.id
@@ -398,7 +417,7 @@ class KronchENProvider: MainAPI() {
 
     private fun BetaKronchData.togetNormalEps(isSubbed: Boolean?):Episode{
         val eptitle = this.title
-        val epID= this.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams")
+        val epID= this.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams") ?: this.id
         val epthumb = this.images?.thumbnail?.map { it[3].source }?.first() ?: ""
         val epplot = this.description
         val season = this.seasonNumber
@@ -420,7 +439,7 @@ class KronchENProvider: MainAPI() {
         val type = parsedData.tvtype
         val tvType = if (type!!.contains("movie")) TvType.AnimeMovie else TvType.Anime
         val isMovie = tvType == TvType.AnimeMovie
-        val tttt = if (isMovie) "$krunchyapi/content/v2/cms/movie_listings/$seriesIDSuper?locale=en-US" else "$krunchyapi/content/v2/cms/series/$seriesIDSuper?locale=en-US"
+        val tttt = if (isMovie) "$krunchyapi/content/v2/cms/movie_listings/$seriesIDSuper?locale=es-ES" else "$krunchyapi/content/v2/cms/series/$seriesIDSuper?locale=es-ES"
         val response = getKronchMetadataInfo(tttt).data.first()
         val dubEps = ArrayList<Episode>()
         val subEps = if (isMovie) getMovie(seriesIDSuper)  else ArrayList()
@@ -433,22 +452,22 @@ class KronchENProvider: MainAPI() {
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
         val recommendations = getRecommendations(seriesIDSuper)
         if (tvType == TvType.Anime) {
-            getConsuToken()
-            val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=en-US", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
-            if (nn.data.isEmpty()) throw ErrorLoadingException("Failed to get episodes, try again")
+            getKronchGEOToken()
+            val nn = app.get("${krunchyapi}/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+            if (nn.data.isEmpty()) throw ErrorLoadingException("No se podido obtener los episodios, intenta otra vez")
             val inn = nn.data.filter {
                 !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
                 //|| it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
             }
             val innversions = inn.filter {
                 !it.versions.isNullOrEmpty()
-                        || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
+                        || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "es-ES" || it.audioLocale == "es-419" || it.audioLocale?.isEmpty() == true
             }
 
-            inn.forEach { main ->
+            inn.apmap { main ->
                 val mainID = main.id
-                val res = app.get("$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=en-US", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
-                if (res.data.isEmpty()) throw ErrorLoadingException("Failed to load season, try again")
+                val res = app.get("${krunchyapi}/content/v2/cms/seasons/$mainID/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+                if (res.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
                 val restwo = res.data.filter {
                     it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale?.isEmpty() == true
                 }
@@ -461,16 +480,16 @@ class KronchENProvider: MainAPI() {
             }
             innversions.map {ve ->
                 val versionsfiltered = ve.versions?.filter {
-                    (it.audioLocale?.contains(Regex("ja-JP|en-US")) == true || it.audioLocale.isNullOrEmpty())
+                    (it.audioLocale?.contains(Regex("ja-JP|zh-CN|es-ES|es-419")) == true || it.audioLocale.isNullOrEmpty())
                 }
-                versionsfiltered?.forEach { vers ->
+                versionsfiltered?.apmap { vers ->
                     val guid = vers.guid
-                    val resv = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=en-US", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
-                    if (resv.data.isEmpty()) throw ErrorLoadingException("Failed to load season, try again")
+                    val resv = app.get("${krunchyapi}/content/v2/cms/seasons/$guid/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+                    if (resv.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
                     resv.data.map { pss ->
                         val clip = pss.isClip == false
                         val audioss = pss.audioLocale
-                        if (audioss == "en-US" && clip) {
+                        if (audioss == "es-ES" || audioss == "es-419" && clip) {
                             val dubss = pss.togetNormalEps(false)
                             dubEps.add(dubss)
                         }
@@ -550,38 +569,55 @@ class KronchENProvider: MainAPI() {
     )
 
 
+    data class BetaKronchGEOStreams (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<Testt>? = arrayListOf(),
+        @JsonProperty("meta"  ) var meta  : Meta?           = Meta()
+    )
+    data class Meta (
+        @JsonProperty("subtitles"       ) var subtitles      : Map<String, Subtitle>?          = null,
+    )
+
+
+
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        getKronchToken()
+        getKronchGEOToken()
         val newdata = data.replace("https://www.crunchyroll.com/","")
         val parsedata = parseJson<EpsInfo>(newdata)
-        val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
         val mediaId = parsedata.id
         val issub = parsedata.issub == true
-        val response = app.get("$krunchyapi/cms/v2${consuToken.bucket}/videos/$mediaId/streams?Policy=${consuToken.policy}&Signature=${consuToken.signature}&Key-Pair-Id=${consuToken.keyPairId}").parsed<BetaKronchStreams>()
-        val aa = response.streams?.vrvHLS ?: response.streams?.adaptiveHLS ?: return false
+        val response = app.get("$krunchyapi/content/v2/cms/videos/$mediaId/streams", latestKrunchyHeader).parsed<BetaKronchGEOStreams>()
+        response.data?.map {testt ->
+            val aa = testt.vrvHLS ?: testt.adaptiveHLS ?: return false
+            aa.entries.filter {
+                it.key == "es-ES" || it.key == "es-419" || it.key.isEmpty()
+            }.map {
+                it.value
+            }.apmap {
+                val raw = it.hardsubLocale?.isEmpty()
+                val hardsubinfo = it.hardsubLocale?.contains(Regex("es-ES|es-419"))
+                val hardss = it.hardsubLocale
+                val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
+                val name = if (raw == false && issub && hardss?.contains("es-ES") == true) "Kronch$vvv Hardsub Español España"
+                else if (raw == false && issub && hardss?.contains("es-419") == true) "Kronch$vvv Hardsub Español LAT"
+                else if (!issub) "Kronch$vvv Español"
+                else "Kronch$vvv RAW"
 
-        aa.entries.filter {
-            it.key == "en-US" || it.key.isEmpty()
-        }.map {
-            it.value
-        }.apmap {
-            val raw = it.hardsubLocale?.isEmpty()
-            val hardsubinfo = it.hardsubLocale?.contains("en-US")
-            val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
-            val name = if (raw == false && issub) "Kronch$vvv Hardsub English (US)" else if (raw == true && issub) "Kronch$vvv RAW" else "Kronch$vvv English"
-            if (hardsubinfo == true && issub) {
-                getKronchStream(it.url!!, name, callback)
-            }
-            if (raw == true) {
-                getKronchStream(it.url!!, name, callback)
+                if (hardsubinfo == true && issub) {
+                    getKronchStream(it.url!!, name, callback)
+                }
+                if (raw == true) {
+                    getKronchStream(it.url!!, name, callback)
+                }
             }
         }
-        response.subtitles?.map {
+        response.meta?.subtitles?.map {
             it.value
         }?.map {
             val lang = when (it.locale){
@@ -612,7 +648,6 @@ class KronchENProvider: MainAPI() {
                 SubtitleFile(lang,url!!)
             )
         }
-
         return true
     }
 }
