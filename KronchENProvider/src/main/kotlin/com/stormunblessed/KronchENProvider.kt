@@ -433,7 +433,8 @@ class KronchENProvider: MainAPI() {
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
         val recommendations = getRecommendations(seriesIDSuper)
         getConsuToken()
-        val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=en-US", headers = latestKrunchyHeader).parsed<BetaKronch>()
+        val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=en-US", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+        if (nn.data.isEmpty()) throw ErrorLoadingException("Failed to get episodes, try again")
         val inn = nn.data.filter {
             !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
             //|| it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
@@ -443,31 +444,36 @@ class KronchENProvider: MainAPI() {
                     || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
         }
 
-        inn.apmap { main ->
+        inn.forEach { main ->
             val mainID = main.id
-            val res = app.get("$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=en-US", headers = latestKrunchyHeader).parsed<BetaKronch>()
+            val res = app.get("$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=en-US", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+            if (res.data.isEmpty()) throw ErrorLoadingException("Failed to load season, try again")
             val restwo = res.data.filter {
                 it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale?.isEmpty() == true
             }
-            val sssa = restwo.map { second ->
-                second.togetNormalEps( true)
+            restwo.map { second ->
+                val clip = second.isClip == false
+                if (clip) {
+                    subEps.add(second.togetNormalEps( true))
+                }
             }
-            subEps.addAll(sssa)
         }
         innversions.map {ve ->
             val versionsfiltered = ve.versions?.filter {
                 (it.audioLocale?.contains(Regex("ja-JP|en-US")) == true || it.audioLocale.isNullOrEmpty())
             }
-            versionsfiltered?.apmap { vers ->
+            versionsfiltered?.forEach { vers ->
                 val guid = vers.guid
-                val resv = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=en-US", headers = latestKrunchyHeader).parsed<BetaKronch>()
+                val resv = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=en-US", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+                if (resv.data.isEmpty()) throw ErrorLoadingException("Failed to load season, try again")
                 resv.data.map { pss ->
+                    val clip = pss.isClip == false
                     val audioss = pss.audioLocale
-                    if (audioss == "en-US") {
+                    if (audioss == "en-US" && clip) {
                         val dubss = pss.togetNormalEps(true)
                         dubEps.add(dubss)
                     }
-                    if (audioss.isNullOrEmpty() || audioss == "ja-JP") {
+                    if (audioss.isNullOrEmpty() || audioss == "ja-JP" && clip) {
                         val subbs =pss.togetNormalEps( true)
                         subEps.add(subbs)
                     }
@@ -478,6 +484,7 @@ class KronchENProvider: MainAPI() {
         val sases = subEps.sortedBy {
             it.season
         }
+
         val dubes = dubEps.sortedBy {
             it.season
         }
@@ -508,21 +515,10 @@ class KronchENProvider: MainAPI() {
         callback: (ExtractorLink) -> Unit
     )  {
         return M3u8Helper.generateM3u8(
-            this.name,
+            name,
             streamLink,
             "https://static.crunchyroll.com/"
-        ).forEach { sub ->
-            callback(
-                ExtractorLink(
-                    this.name,
-                    name,
-                    sub.url,
-                    "https://static.crunchyroll.com/",
-                    getQualityFromName(sub.quality.toString()),
-                    true
-                )
-            )
-        }
+        ).forEach(callback)
     }
 
     data class BetaKronchStreams (

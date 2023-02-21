@@ -5,7 +5,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.getQualityFromName
 
 class KronchESProvider: MainAPI() {
 
@@ -190,7 +189,7 @@ class KronchESProvider: MainAPI() {
         val items = ArrayList<HomePageList>()
         val urls = listOf(
             Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=popularity", "Popular"),
-            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Recientes")
+            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Newly Added")
         )
         getKronchToken()
 
@@ -272,31 +271,6 @@ class KronchESProvider: MainAPI() {
         getConsuToken()
         return app.get(url, headers = latestKrunchyHeader).parsed()
     }
-    private fun getEpisode(data: BetaKronchData?, isSubbed: Boolean?):Episode{
-        val eptitle = data?.title
-        val epID= data?.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams")
-        val epthumb = data?.images?.thumbnail?.map { it[3].source }?.first() ?: ""
-        val epplot = data?.description
-        val season = data?.seasonNumber
-        val epnum = data?.episodeNumber
-        val dataep = "{\"id\":\"$epID\",\"issub\":$isSubbed}"
-        val aaseason = "$season-$epnum"
-        val seasonid =aaseason.let { str ->
-            str.split("-").mapNotNull { subStr -> subStr.toIntOrNull() }
-        }.sorted()
-        val isValid = seasonid.size == 2
-        val aaepisode = if (isValid) seasonid.getOrNull(1) else null
-        val aaseasontwo = if (isValid) seasonid.getOrNull(0) else null
-        return Episode(
-            dataep,
-            eptitle!!,
-            season = aaseasontwo,
-            episode = aaepisode,
-            posterUrl = epthumb,
-            description = epplot
-        )
-    }
-
 
     private suspend fun getMovie(id: String?):ArrayList<Episode> {
         getKronchToken()
@@ -420,6 +394,24 @@ class KronchESProvider: MainAPI() {
             }
         }
     }
+
+    private fun BetaKronchData.togetNormalEps(isSubbed: Boolean?):Episode{
+        val eptitle = this.title
+        val epID= this.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams")
+        val epthumb = this.images?.thumbnail?.map { it[3].source }?.first() ?: ""
+        val epplot = this.description
+        val season = this.seasonNumber
+        val epnum = this.episodeNumber
+        val dataep = "{\"id\":\"$epID\",\"issub\":$isSubbed}"
+        return newEpisode(dataep){
+            this.name = eptitle
+            this.episode = epnum
+            this.season = season
+            this.description = epplot
+            this.posterUrl = epthumb
+        }
+    }
+
     override suspend fun load(url: String): LoadResponse {
         val fixedData = url.replace("https://www.crunchyroll.com/","")
         val parsedData = parseJson<LoadDataInfo>(fixedData)
@@ -439,50 +431,65 @@ class KronchESProvider: MainAPI() {
         val tags = response.keywords
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
         val recommendations = getRecommendations(seriesIDSuper)
-        if (!isMovie) {
-            getConsuToken()
-            val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES", headers = latestKrunchyHeader).parsed<BetaKronch>()
-            val inn = nn.data.filter {
-                !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
+        getConsuToken()
+        val nn = app.get("$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+        if (nn.data.isEmpty()) throw ErrorLoadingException("No se podido obtener los episodios, intenta otra vez")
+        val inn = nn.data.filter {
+            !it.title!!.contains(Regex("Piece: East Blue|Piece: Alabasta|Piece: Sky Island"))
+            //|| it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
+        }
+        val innversions = inn.filter {
+            !it.versions.isNullOrEmpty()
+                    || it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "en-US" || it.audioLocale?.isEmpty() == true
+        }
+
+        inn.apmap { main ->
+            val mainID = main.id
+            val res = app.get("$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+            if (res.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
+            val restwo = res.data.filter {
+                it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale?.isEmpty() == true
             }
-            inn.apmap { nntwo ->
-                val audioaa = nntwo.audioLocale == "ja-JP" || nntwo.audioLocale == "zh-CN"
-                val versions = nntwo.versions
-                val sss = nntwo.id
-                if (!versions.isNullOrEmpty()) {
-                    versions.filter {
-                        it.audioLocale == "ja-JP" || it.audioLocale == "zh-CN" || it.audioLocale == "es-ES"
-                                || it.audioLocale == "es-419" ||it.audioLocale?.isEmpty() == true
-                    }.forEach {
-                        val guid = it.guid
-                        val res = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsed<BetaKronch>()
-                        res.data.filter {
-                            it.isClip == false
-                        }.apmap {
-                            val issub = it.audioLocale == "ja-JP"  || it.audioLocale == "zh-CN" || it.audioLocale?.isEmpty() == true
-                            val isdub = it.audioLocale == "es-ES" || it.audioLocale == "es-419"
-                            if (issub) {
-                                subEps.add(getEpisode(it, true))
-                            }
-                            if (isdub)  {
-                                dubEps.add(getEpisode(it, false))
-                            }
-                        }
-                    }
+            restwo.map { second ->
+                val clip = second.isClip == false
+                if (clip) {
+                    subEps.add(second.togetNormalEps( true))
                 }
-                if (audioaa) {
-                    val res = app.get("$krunchyapi/content/v2/cms/seasons/$sss/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsed<BetaKronch>()
-                    res.data.filter {
-                        it.isClip == false
-                    }.apmap { data ->
-                        subEps.add(getEpisode(data, true))
+            }
+        }
+        innversions.map {ve ->
+            val versionsfiltered = ve.versions?.filter {
+                (it.audioLocale?.contains(Regex("ja-JP|zh-CN|es-ES|es-419")) == true || it.audioLocale.isNullOrEmpty())
+            }
+            versionsfiltered?.apmap { vers ->
+                val guid = vers.guid
+                val resv = app.get("$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=es-ES", headers = latestKrunchyHeader).parsedSafe<BetaKronch>() ?: throw ErrorLoadingException("Couldn't get episodes, try again")
+                if (resv.data.isEmpty()) throw ErrorLoadingException("No se ha podido cargar la temporada correctamente, intenta de nuevo")
+                resv.data.map { pss ->
+                    val clip = pss.isClip == false
+                    val audioss = pss.audioLocale
+                    if (audioss == "es-ES" || audioss == "es-419" && clip) {
+                        val dubss = pss.togetNormalEps(true)
+                        dubEps.add(dubss)
+                    }
+                    if (audioss.isNullOrEmpty() || audioss == "ja-JP" && clip) {
+                        val subbs =pss.togetNormalEps( true)
+                        subEps.add(subbs)
                     }
                 }
             }
         }
+
+        val sases = subEps.sortedBy {
+            it.season
+        }
+
+        val dubes = dubEps.sortedBy {
+            it.season
+        }
         return newAnimeLoadResponse(title, infodata, TvType.Anime) {
-            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,subEps.distinct().toList())
-            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubEps.distinct().toList())
+            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,sases.toSet().toList())
+            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubes.toSet().toList())
             this.plot = plot
             this.tags = tags
             this.year = year
@@ -506,21 +513,10 @@ class KronchESProvider: MainAPI() {
         callback: (ExtractorLink) -> Unit
     )  {
         return M3u8Helper.generateM3u8(
-            this.name,
+            name,
             streamLink,
             "https://static.crunchyroll.com/"
-        ).forEach { sub ->
-            callback(
-                ExtractorLink(
-                    this.name,
-                    name,
-                    sub.url,
-                    "https://static.crunchyroll.com/",
-                    getQualityFromName(sub.quality.toString()),
-                    true
-                )
-            )
-        }
+        ).forEach(callback)
     }
 
     data class BetaKronchStreams (
@@ -557,7 +553,8 @@ class KronchESProvider: MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         getKronchToken()
-        val parsedata = parseJson<EpsInfo>(data)
+        val replace = data.replace("https://www.crunchyroll.com/","")
+        val parsedata = parseJson<EpsInfo>(replace)
         val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
         val mediaId = parsedata.id
         val issub = parsedata.issub == true
