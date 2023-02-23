@@ -5,7 +5,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.getQualityFromName
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
@@ -155,6 +154,7 @@ class KronchENProvider : MainAPI() {
         @JsonProperty("is_dubbed") var isDubbed: Boolean? = null,
         @JsonProperty("audio_locales") var audioLocales: ArrayList<String> = arrayListOf(),
         @JsonProperty("season_tags") var seasonTags: ArrayList<String> = arrayListOf(),
+        @JsonProperty("streams_link") var streamsLink: String? = null,
         @JsonProperty("episode_count") var episodeCount: Int? = null,
         @JsonProperty("season_count") var seasonCount: Int? = null,
         @JsonProperty("is_subbed") var isSubbed: Boolean? = null,
@@ -226,40 +226,62 @@ class KronchENProvider : MainAPI() {
         return HomePageResponse(items)
     }
 
-    data class ConsumetSearch(
-        @JsonProperty("results") var results: ArrayList<ConsumetSearchResults> = arrayListOf()
+    data class BetaKronchGEOSearch (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<GeoSearchData> = arrayListOf(),
     )
 
-    data class ConsumetSearchResults(
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("title") var title: String? = null,
-        @JsonProperty("type") var type: String? = null,
-        @JsonProperty("description") var description: String? = null,
-        @JsonProperty("image") var image: String? = null,
-        @JsonProperty("cover") var cover: String? = null,
-        @JsonProperty("hasDub") var hasDub: Boolean? = null,
-        @JsonProperty("hasSub") var hasSub: Boolean? = null
+    data class GeoSearchData (
+
+        @JsonProperty("items" ) var items : ArrayList<GeoSearchItems> = arrayListOf()
+
     )
+
+    data class GeoSearchItems (
+        @JsonProperty("title"               ) var title             : String?         = null,
+        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
+        @JsonProperty("external_id"         ) var externalId        : String?         = null,
+        @JsonProperty("series_metadata"     ) var seriesMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("movie_listing_metadata"     ) var movieMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("type"                ) var type              : String?         = null,
+        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
+        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
+        @JsonProperty("slug"                ) var slug              : String?         = null,
+        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
+        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
+        @JsonProperty("description"         ) var description       : String?         = null,
+        @JsonProperty("id"                  ) var id                : String?         = null,
+        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
+        @JsonProperty("new"                 ) var new               : Boolean?        = null
+    )
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> {
+        return search(query)
+    }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$kronchyConsumetapi/$query"
+        getConsuToken()
+        val url = "${krunchyapi}/content/v2/discover/search?q=$query&type=series,movie_listing"
         val search = ArrayList<SearchResponse>()
-        val rep = app.get(url).parsed<ConsumetSearch>()
-        rep.results.map { info ->
-            val title = info.title
-            val image = info.image
-            val dubExist = info.hasDub == true
-            val subExist = info.hasSub == true
-            val id = info.id
-            val type = info.type
-            val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
-            search.add(
-                newAnimeSearchResponse(title!!, data) {
+        val res = app.get(url, headers = latestKrunchyHeader).parsed<BetaKronchGEOSearch>()
+        res.data.map {
+            it.items.sortedBy {
+                it.type
+            }.map {info ->
+                val title = info.title
+                val image = info.images?.posterTall?.get(0)?.get(6)?.source ?: ""
+                val dubExist = info.seriesMetadata?.isDubbed ?: info.movieMetadata?.isDubbed ?: false
+                val subExist = info.seriesMetadata?.isSubbed ?: info.movieMetadata?.isSubbed ?: false
+                val id = info.id
+                val type = info.type
+                val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
+                search.add(newAnimeSearchResponse(title!!, data) {
                     this.posterUrl = image
                     addDubStatus(dubExist, subExist)
-                }
-            )
+                })
+            }
         }
+
         return search
     }
 
@@ -280,17 +302,17 @@ class KronchENProvider : MainAPI() {
     }
 
     private suspend fun getMovie(id: String?): ArrayList<Episode> {
-        getKronchToken()
+        getConsuToken()
         val movie = ArrayList<Episode>()
         val metadainfo =
             app.get(
-                "$krunchyapi/content/v2/cms/movie_listings/$id/movies?locale=en-US",
+                "${krunchyapi}/content/v2/cms/movie_listings/$id/movies?locale=en-US",
                 headers = latestKrunchyHeader
             )
                 .parsed<KrunchyLoadMain>()
         metadainfo.data.map {
             val title = it.title
-            val epID = it.id
+            val epID =  it.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams") ?: it.id
             val epdesc = it.description
             val posterstring = it.images?.thumbnail.toString()
             val issub = it.isSubbed
@@ -488,7 +510,7 @@ class KronchENProvider : MainAPI() {
                         .parsedSafe<BetaKronch>()
                         ?: throw ErrorLoadingException("Couldn't get episodes, try again")
                 if (res.data.isEmpty())
-                    throw ErrorLoadingException("Failed to load season, try again")
+                    throw ErrorLoadingException("Failed to load season ${main.title}, try again")
                 val restwo =
                     res.data.filter {
                         it.audioLocale == "ja-JP" ||
@@ -518,7 +540,7 @@ class KronchENProvider : MainAPI() {
                             .parsedSafe<BetaKronch>()
                             ?: throw ErrorLoadingException("Couldn't get episodes, try again")
                     if (resv.data.isEmpty())
-                        throw ErrorLoadingException("Failed to load season, try again")
+                        throw ErrorLoadingException("Failed to load season ${ve.title}, try again")
                     resv.data.map { pss ->
                         val clip = pss.isClip == false
                         val audioss = pss.audioLocale
