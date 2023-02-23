@@ -25,6 +25,7 @@ class KronchENProvider : MainAPI() {
     override val instantLinkLoading = false
     override val hasMainPage = true
     override var lang = "en"
+    override val hasQuickSearch = true
     override val supportedTypes =
         setOf(
             TvType.AnimeMovie,
