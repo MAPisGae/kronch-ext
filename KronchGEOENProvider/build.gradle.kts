@@ -3,7 +3,7 @@ version = 2
 
 
 cloudstream {
-    language = "es"
+    language = "en"
     // All of these properties are optional, you can safely remove them
 
     description = "This extensions is region locked, it will help you watch english hardsubbed/dubbed anime in your region"
