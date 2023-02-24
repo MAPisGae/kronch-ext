@@ -17,7 +17,7 @@ class KronchENProvider : MainAPI() {
         // var latestKrunchySession: Map<String, String> = emptyMap()
         var latestcountryID = ""
         private const val krunchyapi = "https://beta-api.crunchyroll.com"
-        private const val kronchyConsumetapi = "https://api.consumet.org/anime/crunchyroll"
+        //private const val kronchyConsumetapi = "https://api.consumet.org/anime/crunchyroll"
     }
 
     override var name = "Kronch"
@@ -25,6 +25,7 @@ class KronchENProvider : MainAPI() {
     override val instantLinkLoading = false
     override val hasMainPage = true
     override var lang = "en"
+    override val hasQuickSearch = true
     override val supportedTypes =
         setOf(
             TvType.AnimeMovie,
@@ -109,8 +110,7 @@ class KronchENProvider : MainAPI() {
         @JsonProperty("last_public") var lastPublic: String? = null,
         @JsonProperty("slug_title") var slugTitle: String? = null,
         @JsonProperty("external_id") var externalId: String? = null,
-        @JsonProperty("series_metadata")
-        var seriesMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("series_metadata") var seriesMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
         @JsonProperty("type") var type: String? = null,
         @JsonProperty("id") var id: String? = null,
         @JsonProperty("promo_title") var promoTitle: String? = null,
@@ -226,33 +226,33 @@ class KronchENProvider : MainAPI() {
         return HomePageResponse(items)
     }
 
-    data class BetaKronchGEOSearch (
-        @JsonProperty("total" ) var total : Int?            = null,
-        @JsonProperty("data"  ) var data  : ArrayList<GeoSearchData> = arrayListOf(),
+    data class BetaKronchGEOSearch(
+        @JsonProperty("total") var total: Int? = null,
+        @JsonProperty("data") var data: ArrayList<GeoSearchData> = arrayListOf(),
     )
 
-    data class GeoSearchData (
-
-        @JsonProperty("items" ) var items : ArrayList<GeoSearchItems> = arrayListOf()
-
+    data class GeoSearchData(
+        @JsonProperty("items") var items: ArrayList<GeoSearchItems> = arrayListOf()
     )
 
-    data class GeoSearchItems (
-        @JsonProperty("title"               ) var title             : String?         = null,
-        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
-        @JsonProperty("external_id"         ) var externalId        : String?         = null,
-        @JsonProperty("series_metadata"     ) var seriesMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
-        @JsonProperty("movie_listing_metadata"     ) var movieMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
-        @JsonProperty("type"                ) var type              : String?         = null,
-        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
-        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
-        @JsonProperty("slug"                ) var slug              : String?         = null,
-        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
-        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
-        @JsonProperty("description"         ) var description       : String?         = null,
-        @JsonProperty("id"                  ) var id                : String?         = null,
-        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
-        @JsonProperty("new"                 ) var new               : Boolean?        = null
+    data class GeoSearchItems(
+        @JsonProperty("title") var title: String? = null,
+        @JsonProperty("promo_title") var promoTitle: String? = null,
+        @JsonProperty("external_id") var externalId: String? = null,
+        @JsonProperty("series_metadata")
+        var seriesMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("movie_listing_metadata")
+        var movieMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("type") var type: String? = null,
+        @JsonProperty("promo_description") var promoDescription: String? = null,
+        @JsonProperty("slug_title") var slugTitle: String? = null,
+        @JsonProperty("slug") var slug: String? = null,
+        @JsonProperty("channel_id") var channelId: String? = null,
+        @JsonProperty("images") var images: KrunchyImages? = KrunchyImages(),
+        @JsonProperty("description") var description: String? = null,
+        @JsonProperty("id") var id: String? = null,
+        @JsonProperty("linked_resource_key") var linkedResourceKey: String? = null,
+        @JsonProperty("new") var new: Boolean? = null
     )
 
     override suspend fun quickSearch(query: String): List<SearchResponse> {
@@ -265,21 +265,25 @@ class KronchENProvider : MainAPI() {
         val search = ArrayList<SearchResponse>()
         val res = app.get(url, headers = latestKrunchyHeader).parsed<BetaKronchGEOSearch>()
         res.data.map {
-            it.items.sortedBy {
-                it.type
-            }.map {info ->
-                val title = info.title
-                val image = info.images?.posterTall?.get(0)?.get(6)?.source ?: ""
-                val dubExist = info.seriesMetadata?.isDubbed ?: info.movieMetadata?.isDubbed ?: false
-                val subExist = info.seriesMetadata?.isSubbed ?: info.movieMetadata?.isSubbed ?: false
-                val id = info.id
-                val type = info.type
-                val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
-                search.add(newAnimeSearchResponse(title!!, data) {
-                    this.posterUrl = image
-                    addDubStatus(dubExist, subExist)
-                })
-            }
+            it.items
+                .sortedBy { it.type }
+                .map { info ->
+                    val title = info.title
+                    val image = info.images?.posterTall?.get(0)?.get(6)?.source ?: ""
+                    val dubExist =
+                        info.seriesMetadata?.isDubbed ?: info.movieMetadata?.isDubbed ?: false
+                    val subExist =
+                        info.seriesMetadata?.isSubbed ?: info.movieMetadata?.isSubbed ?: false
+                    val id = info.id
+                    val type = info.type
+                    val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
+                    search.add(
+                        newAnimeSearchResponse(title!!, data) {
+                            this.posterUrl = image
+                            addDubStatus(dubExist, subExist)
+                        }
+                    )
+                }
         }
 
         return search
@@ -306,13 +310,14 @@ class KronchENProvider : MainAPI() {
         val movie = ArrayList<Episode>()
         val metadainfo =
             app.get(
-                "${krunchyapi}/content/v2/cms/movie_listings/$id/movies?locale=en-US",
+                "${krunchyapi}/content/v2/cms/movie_listings/$id/movies?locale=es-ES",
                 headers = latestKrunchyHeader
             )
                 .parsed<KrunchyLoadMain>()
         metadainfo.data.map {
             val title = it.title
-            val epID =  it.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams") ?: it.id
+            val epID =
+                it.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams") ?: it.id
             val epdesc = it.description
             val posterstring = it.images?.thumbnail.toString()
             val issub = it.isSubbed
@@ -609,6 +614,7 @@ class KronchENProvider : MainAPI() {
     data class Testt(
         @JsonProperty("adaptive_hls") val adaptiveHLS: Map<String, BetaKronchS>? = null,
         @JsonProperty("vo_adaptive_hls") val vrvHLS: Map<String, BetaKronchS>? = null,
+        @JsonProperty("multitrack_adaptive_hls_v2") val multiadaptiveHLS: Map<String, BetaKronchS>? = null,
     )
 
     data class BetaKronchS(
@@ -661,25 +667,28 @@ class KronchENProvider : MainAPI() {
                 "$krunchyapi/cms/v2${consuToken.bucket}/videos/$mediaId/streams?Policy=${consuToken.policy}&Signature=${consuToken.signature}&Key-Pair-Id=${consuToken.keyPairId}"
             )
                 .parsed<BetaKronchStreams>()
-        val aa = response.streams?.vrvHLS ?: response.streams?.adaptiveHLS ?: return false
-
-        aa.entries
-            .filter { it.key == "en-US" || it.key.isEmpty() }
-            .map { it.value }
-            .apmap {
-                val raw = it.hardsubLocale?.isEmpty()
-                val hardsubinfo = it.hardsubLocale?.contains("en-US")
-                val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
-                val name =
-                    if (raw == false && issub) "Kronch$vvv Hardsub English (US)"
-                    else if (raw == true && issub) "Kronch$vvv RAW" else "Kronch$vvv English"
-                if (hardsubinfo == true && issub) {
-                    getKronchStream(it.url!!, name, callback)
+        val adphls = response.streams?.multiadaptiveHLS ?: response.streams?.adaptiveHLS
+        val vvhls = response.streams?.vrvHLS
+        val bbb = listOfNotNull(vvhls, adphls)
+        bbb.apmap { aa ->
+            aa.entries
+                .filter { it.key == "en-US" || it.key.isEmpty() }
+                .map { it.value }
+                .apmap {
+                    val raw = it.hardsubLocale?.isEmpty()
+                    val hardsubinfo = it.hardsubLocale?.contains("en-US")
+                    val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
+                    val name =
+                        if (raw == false && issub) "Kronch$vvv Hardsub English (US)"
+                        else if (raw == true && issub) "Kronch$vvv RAW" else "Kronch$vvv English"
+                    if (hardsubinfo == true && issub) {
+                        getKronchStream(it.url!!, name, callback)
+                    }
+                    if (raw == true) {
+                        getKronchStream(it.url!!, name, callback)
+                    }
                 }
-                if (raw == true) {
-                    getKronchStream(it.url!!, name, callback)
-                }
-            }
+        }
         response.subtitles
             ?.map { it.value }
             ?.map {
