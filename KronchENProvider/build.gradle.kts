@@ -22,5 +22,5 @@ cloudstream {
         "OVA",
     )
 
-    iconUrl = "https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/kronch.png"
+    iconUrl = "https://avatars.githubusercontent.com/u/105397082?s=300&v=4"
 }

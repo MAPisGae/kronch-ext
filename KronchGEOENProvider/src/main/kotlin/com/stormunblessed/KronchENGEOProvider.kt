@@ -1,10 +1,14 @@
 package com.stormunblessed
 
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.AcraApplication.Companion.context
 
 class KronchENGEOProvider: MainAPI() {
 
@@ -29,7 +33,7 @@ class KronchENGEOProvider: MainAPI() {
         TvType.Anime,
     )
 
-
+    private val handler by lazy { Handler(Looper.getMainLooper()) }
     data class KronchyToken (
         @JsonProperty("access_token" ) val accessToken : String? = null,
         @JsonProperty("expires_in"   ) val expiresIn   : Int?    = null,
@@ -185,6 +189,9 @@ class KronchENGEOProvider: MainAPI() {
             Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Newly Added")
         )
         getKronchGEOToken()
+        handler.post {
+            context.let { Toast.makeText(it, "Country: $latestcountryID", Toast.LENGTH_LONG).show() }
+        }
         urls.apmap {(url, name) ->
             val res = app.get(url,
                 headers = latestKrunchyHeader
