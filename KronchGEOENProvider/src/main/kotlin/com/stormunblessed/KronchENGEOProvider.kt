@@ -38,16 +38,21 @@ class KronchENGEOProvider: MainAPI() {
         @JsonProperty("country"      ) val country     : String? = null
     )
 
+    data class TokensJson (
+        @JsonProperty("Rtoken" ) val Rtoken : String ,
+        @JsonProperty("Btoken" ) val Btoken : String
+    )
     private suspend fun getKronchGEOToken(): Map<String, String> {
-        val refreshtoken = app.get("https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/refreshtoken.txt").text
+        val refreshtoken = app.get("https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/refreshtoken.json").parsed<TokensJson>()
+
         val testingasa = app.post("$krunchyapi/auth/v1/token",
             headers = mapOf(
                 "User-Agent"  to "Crunchyroll/3.26.1 Android/11 okhttp/4.9.2",
                 "Content-Type" to "application/x-www-form-urlencoded",
-                "Authorization" to "Basic bnI1NG8wX3EzNmR0N3F3aTljdTU6eU84aXRhaHNob1pDUkFSS2YxcVdrd1psc2txX0VUTGk="
+                "Authorization" to "Basic ${refreshtoken.Btoken}"
             ),
             data = mapOf(
-                "refresh_token" to refreshtoken,
+                "refresh_token" to refreshtoken.Rtoken,
                 "grant_type" to "refresh_token",
                 "scope" to "offline_access",
             )
