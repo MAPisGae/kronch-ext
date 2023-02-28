@@ -59,7 +59,7 @@ class KronchENGEOProvider: MainAPI() {
         val header = mapOf(
             "Authorization" to "${testingasa.tokenType} ${testingasa.accessToken}"
         )
-        val countryID = testingasa.country!!
+        val countryID = testingasa.country ?: "No country"
         latestKrunchyHeader = header
         latestcountryID = countryID
         return latestKrunchyHeader
