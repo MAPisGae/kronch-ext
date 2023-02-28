@@ -16,7 +16,6 @@ class KronchENGEOProvider: MainAPI() {
         var latestcountryID = ""
         private const val krunchyapi = "https://beta-api.crunchyroll.com"
         //private const val kronchyConsumetapi = "https://api.consumet.org/anime/crunchyroll"
-
     }
 
     override var name = "Kronch\uD83C\uDF0E"
@@ -186,8 +185,8 @@ class KronchENGEOProvider: MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = ArrayList<HomePageList>()
         val urls = listOf(
-            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=popularity", "Popular"),
-            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Newly Added")
+            Pair("$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=popularity", "Popular"),
+            Pair("$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=newly_added", "Newly Added")
         )
         getKronchGEOToken()
         urls.apmap {(url, name) ->
@@ -292,7 +291,7 @@ class KronchENGEOProvider: MainAPI() {
     private suspend fun getMovie(id: String?):ArrayList<Episode> {
         getKronchGEOToken()
         val movie = ArrayList<Episode>()
-        val metadainfo = app.get("$krunchyapi/content/v2/cms/movie_listings/$id/movies?locale=es-ES", headers = latestKrunchyHeader).parsed<KrunchyLoadMain>()
+        val metadainfo = app.get("$krunchyapi/content/v2/cms/movie_listings/$id/movies?locale=en-US", headers = latestKrunchyHeader).parsed<KrunchyLoadMain>()
         metadainfo.data.map {
             val title = it.title
             val epID = it.id
@@ -398,7 +397,7 @@ class KronchENGEOProvider: MainAPI() {
 
     private suspend fun getRecommendations(seriesId: String?): List<SearchResponse>?{
         getKronchGEOToken()
-        val recsurl = "$krunchyapi/content/v2/discover/similar_to/$seriesId?locale=es-ES&n=30"
+        val recsurl = "$krunchyapi/content/v2/discover/similar_to/$seriesId?locale=en-US&n=30"
         val res = app.get(recsurl, headers = latestKrunchyHeader).parsedSafe<BetaKronchRecsMain>()
         return res?.data?.map { rec ->
             val sID = rec.id
@@ -446,7 +445,7 @@ class KronchENGEOProvider: MainAPI() {
         val type = parsedData.tvtype
         val tvType = if (type!!.contains("movie")) TvType.AnimeMovie else TvType.Anime
         val isMovie = tvType == TvType.AnimeMovie
-        val tttt = if (isMovie) "$krunchyapi/content/v2/cms/movie_listings/$seriesIDSuper?locale=es-ES" else "$krunchyapi/content/v2/cms/series/$seriesIDSuper?locale=es-ES"
+        val tttt = if (isMovie) "$krunchyapi/content/v2/cms/movie_listings/$seriesIDSuper?locale=en-US" else "$krunchyapi/content/v2/cms/series/$seriesIDSuper?locale=en-US"
         val response = getKronchMetadataInfo(tttt).data.first()
         val dubEps = ArrayList<Episode>()
         val subEps = if (isMovie) getMovie(seriesIDSuper)  else ArrayList()
