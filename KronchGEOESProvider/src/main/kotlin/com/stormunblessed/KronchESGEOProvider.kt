@@ -415,10 +415,16 @@ class KronchESGEOProvider: MainAPI() {
         val season = this.seasonNumber
         val epnum = this.episodeNumber
         val dataep = "{\"id\":\"$epID\",\"issub\":$isSubbed}"
+        val sstitle = this.seasonTitle ?: ""
+        val newSeason =
+            if (sstitle.contains(Regex("(?i)(Alicization War of Underworld|Battle of Kimluck|Arco del Barrio del Placer)")))
+                season?.plus(1)
+            else if (epnum == null) 0
+            else season
         return newEpisode(dataep){
             this.name = eptitle
             this.episode = epnum
-            this.season = season
+            this.season = newSeason
             this.description = epplot
             this.posterUrl = epthumb
         }

@@ -422,9 +422,9 @@ class KronchENGEOProvider: MainAPI() {
         val sstitle = this.seasonTitle ?: ""
         // To fix missing seasons
         val newSeason =
-            if (sstitle.contains(Regex("(?i)(Alicization War of Underworld|Battle of Kimluck)")))
+            if (sstitle.contains(Regex("(?i)(Alicization War of Underworld|Battle of Kimluck|Entertainment District Arc)")))
                 season?.plus(1)
-            else if (sstitle.contains(Regex("(?i)(Entertainment District Arc)"))) season?.plus(1)
+            else if (epnum == null) 0
             else season
         val date = this.episodeAirDate
 
