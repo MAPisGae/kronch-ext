@@ -24,7 +24,7 @@ class KronchESProvider: MainAPI() {
 
     }
 
-    override var name = "Kronch ES\uD83C\uDF0E"
+    override var name = "Kronch ES"
     override var mainUrl = "https://www.crunchyroll.com"
     override val instantLinkLoading = false
     override val hasMainPage = true
