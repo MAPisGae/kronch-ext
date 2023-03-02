@@ -1,325 +1,355 @@
 package com.stormunblessed
 
+
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.nicehttp.requestCreator
+import java.net.Authenticator
+import java.net.InetSocketAddress
+import java.net.PasswordAuthentication
+import java.net.Proxy
 
-class KronchESProvider : MainAPI() {
+class KronchESProvider: MainAPI() {
 
     companion object {
-        // var latestHeader: Map<String, String> = emptyMap()
+        //var latestHeader: Map<String, String> = emptyMap()
         var latestKrunchyHeader: Map<String, String> = emptyMap()
-        // var latestKrunchySession: Map<String, String> = emptyMap()
+        //var latestKrunchySession: Map<String, String> = emptyMap()
         var latestcountryID = ""
         private const val krunchyapi = "https://beta-api.crunchyroll.com"
-        // private const val kronchyConsumetapi = "https://api.consumet.org/anime/crunchyroll"
+        //private const val kronchyConsumetapi = "https://api.consumet.org/anime/crunchyroll"
+
     }
 
-    override var name = "Kronch ES"
+    override var name = "Kronch ES\uD83C\uDF0E"
     override var mainUrl = "https://www.crunchyroll.com"
     override val instantLinkLoading = false
     override val hasMainPage = true
     override var lang = "es"
-    override val hasQuickSearch = true
-    override val supportedTypes =
-        setOf(
-            TvType.AnimeMovie,
-            TvType.Anime,
+    override val supportedTypes = setOf(
+        TvType.AnimeMovie,
+        TvType.Anime,
+    )
+
+
+    data class KronchyToken (
+        @JsonProperty("access_token" ) val accessToken : String? = null,
+        @JsonProperty("expires_in"   ) val expiresIn   : Int?    = null,
+        @JsonProperty("token_type"   ) val tokenType   : String? = null,
+        @JsonProperty("scope"        ) val scope       : String? = null,
+        @JsonProperty("country"      ) val country     : String? = null
+    )
+
+    data class TokensJson (
+        @JsonProperty("Rtoken" ) val Rtoken : String ,
+        @JsonProperty("Btoken" ) val Btoken : String
+    )
+
+    private suspend fun proxyToken(): Map<String, String> {
+        val refreshtoken =
+            app.get(
+                "https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/refreshtoken.json"
+            ).parsed<TokensJson>()
+        // Thanks to
+        // https://github.com/jmir1/aniyomi-extensions/blob/master/src/all/kamyroll/src/eu/kanade/tachiyomi/animeextension/all/kamyroll/AccessTokenInterceptor.kt
+        val client = app.baseClient.newBuilder().build()
+        val proxy =
+            client
+                .newBuilder()
+                .proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("cr-unblocker.us.to", 1080)))
+                .build()
+        Authenticator.setDefault(
+            object : Authenticator() {
+                override fun getPasswordAuthentication(): PasswordAuthentication {
+                    return PasswordAuthentication("crunblocker", "crunblocker".toCharArray())
+                }
+            },
         )
 
-    data class KronchyToken(
-        @JsonProperty("access_token") val accessToken: String? = null,
-        @JsonProperty("expires_in") val expiresIn: Int? = null,
-        @JsonProperty("token_type") val tokenType: String? = null,
-        @JsonProperty("scope") val scope: String? = null,
-        @JsonProperty("country") val country: String? = null
-    )
-
-    data class ConsuToken(
-        @JsonProperty("access_token") var accessToken: String? = null,
-        @JsonProperty("expires_in") var expiresIn: Int? = null,
-        @JsonProperty("token_type") var tokenType: String? = null,
-        @JsonProperty("scope") var scope: String? = null,
-        @JsonProperty("country") var country: String? = null,
-        @JsonProperty("account_id") var accountId: String? = null,
-        @JsonProperty("signature") var signature: String? = null,
-        @JsonProperty("key_pair_id") var keyPairId: String? = null,
-        @JsonProperty("bucket") var bucket: String? = null,
-        @JsonProperty("policy") var policy: String? = null
-    )
-    private suspend fun getKronchToken(): Map<String, String> {
-        val testingasa =
-            app.post(
-                "$krunchyapi/auth/v1/token",
-                headers =
-                mapOf(
-                    "User-Agent" to "Crunchyroll/3.26.1 Android/11 okhttp/4.9.2",
-                    "Content-Type" to "application/x-www-form-urlencoded",
-                    "Authorization" to
-                            "Basic aHJobzlxM2F3dnNrMjJ1LXRzNWE6cHROOURteXRBU2Z6QjZvbXVsSzh6cUxzYTczVE1TY1k="
-                ),
-                data = mapOf("grant_type" to "client_id")
+        val response =
+            proxy.newCall(
+                requestCreator(
+                    "POST",
+                    "${krunchyapi}/auth/v1/token",
+                    headers =
+                    mapOf(
+                        "User-Agent" to "Crunchyroll/3.26.1 Android/11 okhttp/4.9.2",
+                        "Content-Type" to "application/x-www-form-urlencoded",
+                        "Authorization" to "Basic ${refreshtoken.Btoken}"
+                    ),
+                    data =
+                    mapOf(
+                        "refresh_token" to refreshtoken.Rtoken,
+                        "grant_type" to "refresh_token",
+                        "scope" to "offline_access",
+                    )
+                )
             )
-                .parsed<KronchyToken>()
-        val header = mapOf("Authorization" to "${testingasa.tokenType} ${testingasa.accessToken}")
-        val countryID = testingasa.country!!
+        val jsonResponse = parseJson<KronchyToken>(response.execute().body.string())
+
+        val header = mapOf("Authorization" to "${jsonResponse.tokenType} ${jsonResponse.accessToken}")
+        val countryID = jsonResponse.country ?: "No country"
+
+        latestKrunchyHeader = header
+        latestcountryID = countryID
+        return latestKrunchyHeader
+    }
+   /* private suspend fun proxyToken(): Map<String, String> {
+        val refreshtoken = app.get("https://raw.githubusercontent.com/Stormunblessed/IPTV-CR-NIC/main/logos/refreshtoken.json").parsed<TokensJson>()
+
+        val testingasa = app.post("$krunchyapi/auth/v1/token",
+            headers = mapOf(
+                "User-Agent"  to "Crunchyroll/3.26.1 Android/11 okhttp/4.9.2",
+                "Content-Type" to "application/x-www-form-urlencoded",
+                "Authorization" to "Basic ${refreshtoken.Btoken}"
+            ),
+            data = mapOf(
+                "refresh_token" to refreshtoken.Rtoken,
+                "grant_type" to "refresh_token",
+                "scope" to "offline_access",
+            )
+        ).parsed<KronchyToken>()
+        val header = mapOf(
+            "Authorization" to "${testingasa.tokenType} ${testingasa.accessToken}"
+        )
+        val countryID = testingasa.country ?: "No country"
         latestKrunchyHeader = header
         latestcountryID = countryID
         return latestKrunchyHeader
     }
 
-    private suspend fun getConsuToken(): Map<String, String> {
-        val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
-        val header = mapOf("Authorization" to "${consuToken.tokenType} ${consuToken.accessToken}")
-        latestKrunchyHeader = header
-        latestcountryID = consuToken.country!!
-        return latestKrunchyHeader
-    }
+     private suspend fun getConsuToken():Map<String, String> {
+         val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
+         val header = mapOf(
+             "Authorization" to "${consuToken.tokenType} ${consuToken.accessToken}"
+         )
+         latestKrunchyHeader = header
+         latestcountryID = consuToken.country!!
+         return latestKrunchyHeader
+     } */
 
-    data class PosterTall(
-        @JsonProperty("height") var height: Int? = null,
-        @JsonProperty("source") var source: String? = null,
-        @JsonProperty("type") var type: String? = null,
-        @JsonProperty("width") var width: Int? = null
-    )
-
-    data class KrunchyHome(
-        @JsonProperty("total") val total: Int? = null,
-        @JsonProperty("items") val items: ArrayList<KrunchyItems> = arrayListOf(),
-        @JsonProperty("__class__") val _class_: String? = null,
-        @JsonProperty("__href__") val _href_: String? = null,
-        @JsonProperty("__resource_key__") val _resourceKey_: String? = null,
+    data class PosterTall (
+        @JsonProperty("height" ) var height : Int?    = null,
+        @JsonProperty("source" ) var source : String? = null,
+        @JsonProperty("type"   ) var type   : String? = null,
+        @JsonProperty("width"  ) var width  : Int?    = null
     )
 
-    data class KrunchyItems(
-        @JsonProperty("__class__") var _class_: String? = null,
-        @JsonProperty("new_content") var newContent: Boolean? = null,
-        @JsonProperty("description") var description: String? = null,
-        @JsonProperty("__href__") var _href_: String? = null,
-        @JsonProperty("title") var title: String? = null,
-        @JsonProperty("promo_description") var promoDescription: String? = null,
-        @JsonProperty("slug") var slug: String? = null,
-        @JsonProperty("channel_id") var channelId: String? = null,
-        @JsonProperty("images") var images: KrunchyImages? = KrunchyImages(),
-        @JsonProperty("linked_resource_key") var linkedResourceKey: String? = null,
-        @JsonProperty("last_public") var lastPublic: String? = null,
-        @JsonProperty("slug_title") var slugTitle: String? = null,
-        @JsonProperty("external_id") var externalId: String? = null,
-        @JsonProperty("series_metadata") var seriesMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
-        @JsonProperty("type") var type: String? = null,
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("promo_title") var promoTitle: String? = null,
-        @JsonProperty("new") var new: Boolean? = null
+    data class KrunchyHome (
+        @JsonProperty("total"            ) val total         : Int?             = null,
+        @JsonProperty("items"            ) val items         : ArrayList<KrunchyItems> = arrayListOf(),
+        @JsonProperty("__class__"        ) val _class_       : String?          = null,
+        @JsonProperty("__href__"         ) val _href_        : String?          = null,
+        @JsonProperty("__resource_key__" ) val _resourceKey_ : String?          = null,
     )
 
-    data class KrunchyImages(
-        @JsonProperty("poster_tall")
-        var posterTall: ArrayList<ArrayList<PosterTall>> = arrayListOf(),
-        @JsonProperty("poster_wide")
-        var posterWide: ArrayList<ArrayList<PosterTall>> = arrayListOf(),
-        @JsonProperty("thumbnail") var thumbnail: ArrayList<ArrayList<PosterTall>> = arrayListOf(),
-    )
-    data class KrunchySeriesMetadata(
-        @JsonProperty("audio_locales") var audioLocales: ArrayList<String> = arrayListOf(),
-        @JsonProperty("availability_notes") var availabilityNotes: String? = null,
-        @JsonProperty("episode_count") var episodeCount: Int? = null,
-        @JsonProperty("extended_description") var extendedDescription: String? = null,
-        @JsonProperty("is_dubbed") var isDubbed: Boolean? = null,
-        @JsonProperty("is_mature") var isMature: Boolean? = null,
-        @JsonProperty("is_simulcast") var isSimulcast: Boolean? = null,
-        @JsonProperty("is_subbed") var isSubbed: Boolean? = null,
-        @JsonProperty("mature_blocked") var matureBlocked: Boolean? = null,
-        @JsonProperty("maturity_ratings") var maturityRatings: ArrayList<String> = arrayListOf(),
-        @JsonProperty("season_count") var seasonCount: Int? = null,
-        @JsonProperty("series_launch_year") var seriesLaunchYear: Int? = null,
-        @JsonProperty("subtitle_locales") var subtitleLocales: ArrayList<String> = arrayListOf()
+    data class KrunchyItems (
+        @JsonProperty("__class__"           ) var _class_           : String?         = null,
+        @JsonProperty("new_content"         ) var newContent        : Boolean?        = null,
+        @JsonProperty("description"         ) var description       : String?         = null,
+        @JsonProperty("__href__"            ) var _href_            : String?         = null,
+        @JsonProperty("title"               ) var title             : String?         = null,
+        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
+        @JsonProperty("slug"                ) var slug              : String?         = null,
+        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
+        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
+        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
+        @JsonProperty("last_public"         ) var lastPublic        : String?         = null,
+        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
+        @JsonProperty("external_id"         ) var externalId        : String?         = null,
+        @JsonProperty("series_metadata"     ) var seriesMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("type"                ) var type              : String?         = null,
+        @JsonProperty("id"                  ) var id                : String?         = null,
+        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
+        @JsonProperty("new"                 ) var new               : Boolean?        = null
     )
 
-    data class KrunchyLoadMain(
-        @JsonProperty("total") var total: Int? = null,
-        @JsonProperty("data") var data: ArrayList<KrunchyMetadata> = arrayListOf(),
+    data class KrunchyImages (
+        @JsonProperty("poster_tall" ) var posterTall : ArrayList<ArrayList<PosterTall>> = arrayListOf(),
+        @JsonProperty("poster_wide" ) var posterWide : ArrayList<ArrayList<PosterTall>> = arrayListOf(),
+        @JsonProperty("thumbnail" ) var thumbnail : ArrayList<ArrayList<PosterTall>> = arrayListOf(),
+    )
+    data class KrunchySeriesMetadata (
+        @JsonProperty("audio_locales"            ) var audioLocales           : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("availability_notes"       ) var availabilityNotes      : String?                 = null,
+        @JsonProperty("episode_count"            ) var episodeCount           : Int?                    = null,
+        @JsonProperty("extended_description"     ) var extendedDescription    : String?                 = null,
+        @JsonProperty("is_dubbed"                ) var isDubbed               : Boolean?                = null,
+        @JsonProperty("is_mature"                ) var isMature               : Boolean?                = null,
+        @JsonProperty("is_simulcast"             ) var isSimulcast            : Boolean?                = null,
+        @JsonProperty("is_subbed"                ) var isSubbed               : Boolean?                = null,
+        @JsonProperty("mature_blocked"           ) var matureBlocked          : Boolean?                = null,
+        @JsonProperty("maturity_ratings"         ) var maturityRatings        : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("season_count"             ) var seasonCount            : Int?                    = null,
+        @JsonProperty("series_launch_year"       ) var seriesLaunchYear       : Int?                    = null,
+        @JsonProperty("subtitle_locales"         ) var subtitleLocales        : ArrayList<String>       = arrayListOf()
     )
 
-    data class KrunchyMetadata(
-        @JsonProperty("series_launch_year") var seriesLaunchYear: Int? = null,
-        @JsonProperty("title") var title: String? = null,
-        @JsonProperty("keywords") var keywords: ArrayList<String> = arrayListOf(),
-        @JsonProperty("content_provider") var contentProvider: String? = null,
-        @JsonProperty("subtitle_locales") var subtitleLocales: ArrayList<String> = arrayListOf(),
-        @JsonProperty("is_dubbed") var isDubbed: Boolean? = null,
-        @JsonProperty("audio_locales") var audioLocales: ArrayList<String> = arrayListOf(),
-        @JsonProperty("season_tags") var seasonTags: ArrayList<String> = arrayListOf(),
-        @JsonProperty("streams_link") var streamsLink: String? = null,
-        @JsonProperty("episode_count") var episodeCount: Int? = null,
-        @JsonProperty("season_count") var seasonCount: Int? = null,
-        @JsonProperty("is_subbed") var isSubbed: Boolean? = null,
-        @JsonProperty("channel_id") var channelId: String? = null,
-        @JsonProperty("extended_description") var extendedDescription: String? = null,
-        @JsonProperty("seo_description") var seoDescription: String? = null,
-        @JsonProperty("is_simulcast") var isSimulcast: Boolean? = null,
-        @JsonProperty("availability_notes") var availabilityNotes: String? = null,
-        @JsonProperty("slug") var slug: String? = null,
-        @JsonProperty("maturity_ratings") var maturityRatings: ArrayList<String> = arrayListOf(),
-        @JsonProperty("mature_blocked") var matureBlocked: Boolean? = null,
-        @JsonProperty("images") var images: KrunchyImages? = KrunchyImages(),
-        @JsonProperty("media_count") var mediaCount: Int? = null,
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("slug_title") var slugTitle: String? = null,
-        @JsonProperty("description") var description: String? = null,
-        @JsonProperty("is_mature") var isMature: Boolean? = null,
-        @JsonProperty("seo_title") var seoTitle: String? = null,
-        @JsonProperty("premium_available_date") var premiumAvailableDate: String? = null,
-        @JsonProperty("closed_captions_available") var closedCaptionsAvailable: Boolean? = null,
-        @JsonProperty("free_available_date") var freeAvailableDate: String? = null,
-        @JsonProperty("available_date") var availableDate: String? = null,
-        @JsonProperty("media_type") var mediaType: String? = null,
-        @JsonProperty("available_offline") var availableOffline: Boolean? = null,
-        @JsonProperty("premium_date") var premiumDate: String? = null,
-        @JsonProperty("movie_listing_title") var movieListingTitle: String? = null,
-        @JsonProperty("duration_ms") var durationMs: Int? = null,
-        @JsonProperty("is_premium_only") var isPremiumOnly: Boolean? = null,
-        @JsonProperty("listing_id") var listingId: String? = null,
+
+    data class KrunchyLoadMain (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<KrunchyMetadata> = arrayListOf(),
     )
+
+    data class KrunchyMetadata (
+        @JsonProperty("series_launch_year"       ) var seriesLaunchYear       : Int?                    = null,
+        @JsonProperty("title"                    ) var title                  : String?                 = null,
+        @JsonProperty("keywords"                 ) var keywords               : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("content_provider"         ) var contentProvider        : String?                 = null,
+        @JsonProperty("subtitle_locales"         ) var subtitleLocales        : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("is_dubbed"                ) var isDubbed               : Boolean?                = null,
+        @JsonProperty("audio_locales"            ) var audioLocales           : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("season_tags"              ) var seasonTags             : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("episode_count"            ) var episodeCount           : Int?                    = null,
+        @JsonProperty("season_count"             ) var seasonCount            : Int?                    = null,
+        @JsonProperty("is_subbed"                ) var isSubbed               : Boolean?                = null,
+        @JsonProperty("channel_id"               ) var channelId              : String?                 = null,
+        @JsonProperty("extended_description"     ) var extendedDescription    : String?                 = null,
+        @JsonProperty("seo_description"          ) var seoDescription         : String?                 = null,
+        @JsonProperty("is_simulcast"             ) var isSimulcast            : Boolean?                = null,
+        @JsonProperty("availability_notes"       ) var availabilityNotes      : String?                 = null,
+        @JsonProperty("slug"                     ) var slug                   : String?                 = null,
+        @JsonProperty("maturity_ratings"         ) var maturityRatings        : ArrayList<String>       = arrayListOf(),
+        @JsonProperty("mature_blocked"           ) var matureBlocked          : Boolean?                = null,
+        @JsonProperty("images"                   ) var images                 : KrunchyImages?                 = KrunchyImages(),
+        @JsonProperty("media_count"              ) var mediaCount             : Int?                    = null,
+        @JsonProperty("id"                       ) var id                     : String?                 = null,
+        @JsonProperty("slug_title"               ) var slugTitle              : String?                 = null,
+        @JsonProperty("description"              ) var description            : String?                 = null,
+        @JsonProperty("is_mature"                ) var isMature               : Boolean?                = null,
+        @JsonProperty("seo_title"                ) var seoTitle               : String?                 = null,
+        @JsonProperty("premium_available_date"    ) var premiumAvailableDate    : String?                 = null,
+        @JsonProperty("closed_captions_available" ) var closedCaptionsAvailable : Boolean?                = null,
+        @JsonProperty("free_available_date"       ) var freeAvailableDate       : String?                 = null,
+        @JsonProperty("available_date"            ) var availableDate           : String?                 = null,
+        @JsonProperty("media_type"                ) var mediaType               : String?                 = null,
+        @JsonProperty("available_offline"         ) var availableOffline        : Boolean?                = null,
+        @JsonProperty("premium_date"              ) var premiumDate             : String?                 = null,
+        @JsonProperty("movie_listing_title"       ) var movieListingTitle       : String?                 = null,
+        @JsonProperty("duration_ms"               ) var durationMs              : Int?                    = null,
+        @JsonProperty("is_premium_only"           ) var isPremiumOnly           : Boolean?                = null,
+        @JsonProperty("listing_id"                ) var listingId               : String?                 = null,
+    )
+
+
+
+
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val items = ArrayList<HomePageList>()
-        val urls =
-            listOf(
-                Pair(
-                    "$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=popularity",
-                    "Popular"
-                ),
-                Pair(
-                    "$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added",
-                    "Recientes"
-                )
-            )
-        getKronchToken()
-
-        urls.apmap { (url, name) ->
-            val res = app.get(url, headers = latestKrunchyHeader).parsed<KrunchyHome>()
-            val home =
-                res.items.map {
-                    val title = it.title
-                    val issub = it.seriesMetadata?.isSubbed ?: false
-                    val isdub = it.seriesMetadata?.isDubbed ?: false
-                    // val epss = it.seriesMetadata?.episodeCount
-                    val posterstring = it.images?.posterTall.toString()
-                    // val ttt = it.images?.posterTall?.get(0)?.get(6)?.source ?: ""
-                    val posterregex = Regex("height=2340.*source=(.*),.*type=poster_tall")
-                    val poster = posterregex.find(posterstring)?.destructured?.component1() ?: ""
-                    val seriesID = it.id
-                    val data = "{\"tvtype\":\"${it.type}\",\"seriesID\":\"$seriesID\"}"
-                    newAnimeSearchResponse(title!!, data) {
-                        this.posterUrl = poster
-                        addDubStatus(isdub, issub)
-                    }
+        val urls = listOf(
+            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=popularity", "Popular"),
+            Pair("$krunchyapi/content/v1/browse?locale=es-ES&n=30&sort_by=newly_added", "Recientes")
+        )
+        proxyToken()
+        urls.apmap {(url, name) ->
+            val res = app.get(url,
+                headers = latestKrunchyHeader
+            ).parsed<KrunchyHome>()
+            val home = res.items.map {
+                val title = it.title
+                val issub = it.seriesMetadata?.isSubbed == true
+                val isdub = it.seriesMetadata?.isDubbed == true
+                //val epss = it.seriesMetadata?.episodeCount
+                val posterstring = it.images?.posterTall.toString()
+                //val ttt = it.images?.posterTall?.get(0)?.get(6)?.source ?: ""
+                val posterregex = Regex("height=2340.*source=(.*),.*type=poster_tall")
+                val poster = posterregex.find(posterstring)?.destructured?.component1() ?: ""
+                val seriesID = it.id
+                val data = "{\"tvtype\":\"${it.type}\",\"seriesID\":\"$seriesID\"}"
+                newAnimeSearchResponse(title!!, data){
+                    this.posterUrl = poster
+                    addDubStatus(isdub, issub)
                 }
+            }
             items.add(HomePageList(name, home))
         }
         if (items.size <= 0) throw ErrorLoadingException()
         return HomePageResponse(items)
     }
-
-    data class BetaKronchGEOSearch(
-        @JsonProperty("total") var total: Int? = null,
-        @JsonProperty("data") var data: ArrayList<GeoSearchData> = arrayListOf(),
+    data class BetaKronchGEOSearch (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<GeoSearchData> = arrayListOf(),
     )
 
-    data class GeoSearchData(
-        @JsonProperty("items") var items: ArrayList<GeoSearchItems> = arrayListOf()
+    data class GeoSearchData (
+
+        @JsonProperty("items" ) var items : ArrayList<GeoSearchItems> = arrayListOf()
+
     )
 
-    data class GeoSearchItems(
-        @JsonProperty("title") var title: String? = null,
-        @JsonProperty("promo_title") var promoTitle: String? = null,
-        @JsonProperty("external_id") var externalId: String? = null,
-        @JsonProperty("series_metadata")
-        var seriesMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
-        @JsonProperty("movie_listing_metadata")
-        var movieMetadata: KrunchySeriesMetadata? = KrunchySeriesMetadata(),
-        @JsonProperty("type") var type: String? = null,
-        @JsonProperty("promo_description") var promoDescription: String? = null,
-        @JsonProperty("slug_title") var slugTitle: String? = null,
-        @JsonProperty("slug") var slug: String? = null,
-        @JsonProperty("channel_id") var channelId: String? = null,
-        @JsonProperty("images") var images: KrunchyImages? = KrunchyImages(),
-        @JsonProperty("description") var description: String? = null,
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("linked_resource_key") var linkedResourceKey: String? = null,
-        @JsonProperty("new") var new: Boolean? = null
+    data class GeoSearchItems (
+        @JsonProperty("title"               ) var title             : String?         = null,
+        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
+        @JsonProperty("external_id"         ) var externalId        : String?         = null,
+        @JsonProperty("series_metadata"     ) var seriesMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("type"                ) var type              : String?         = null,
+        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
+        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
+        @JsonProperty("slug"                ) var slug              : String?         = null,
+        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
+        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
+        @JsonProperty("description"         ) var description       : String?         = null,
+        @JsonProperty("id"                  ) var id                : String?         = null,
+        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
+        @JsonProperty("new"                 ) var new               : Boolean?        = null
     )
-
-    override suspend fun quickSearch(query: String): List<SearchResponse> {
-        return search(query)
-    }
-
     override suspend fun search(query: String): List<SearchResponse> {
-        getConsuToken()
-        val url = "${krunchyapi}/content/v2/discover/search?q=$query&type=series,movie_listing"
+        proxyToken()
+        val url = "$krunchyapi/content/v2/discover/search?q=$query&type=series,movie_listing"
         val search = ArrayList<SearchResponse>()
         val res = app.get(url, headers = latestKrunchyHeader).parsed<BetaKronchGEOSearch>()
         res.data.map {
-            it.items
-                .sortedBy { it.type }
-                .map { info ->
-                    val title = info.title
-                    val image = info.images?.posterTall?.get(0)?.get(6)?.source ?: ""
-                    val dubExist =
-                        info.seriesMetadata?.isDubbed ?: info.movieMetadata?.isDubbed ?: false
-                    val subExist =
-                        info.seriesMetadata?.isSubbed ?: info.movieMetadata?.isSubbed ?: false
-                    val id = info.id
-                    val type = info.type
-                    val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
-                    search.add(
-                        newAnimeSearchResponse(title!!, data) {
-                            this.posterUrl = image
-                            addDubStatus(dubExist, subExist)
-                        }
-                    )
-                }
+            it.items.map {info ->
+                val title = info.title
+                val image = info.images?.posterTall?.get(0)?.get(6)?.source ?: ""
+                val dubExist = info.seriesMetadata?.isDubbed ?: false
+                val subExist = info.seriesMetadata?.isSubbed ?: false
+                val id = info.id
+                val type = info.type
+                val data = "{\"tvtype\":\"$type\",\"seriesID\":\"$id\"}"
+                search.add(newAnimeSearchResponse(title!!, data) {
+                    this.posterUrl = image
+                    addDubStatus(dubExist, subExist)
+                })
+            }
         }
 
         return search
     }
 
-    data class LoadDataInfo(
-        @JsonProperty("tvtype") var tvtype: String? = null,
-        @JsonProperty("seriesID") var seriesID: String? = null
+
+    data class LoadDataInfo (
+        @JsonProperty("tvtype"   ) var tvtype   : String? = null,
+        @JsonProperty("seriesID" ) var seriesID : String? = null
     )
-    data class Versions(
-        @JsonProperty("audio_locale") var audioLocale: String? = null,
-        @JsonProperty("guid") var guid: String? = null,
-        @JsonProperty("original") var original: Boolean? = null,
-        @JsonProperty("variant") var variant: String? = null
+    data class Versions (
+        @JsonProperty("audio_locale" ) var audioLocale : String?  = null,
+        @JsonProperty("guid"         ) var guid        : String?  = null,
+        @JsonProperty("original"     ) var original    : Boolean? = null,
+        @JsonProperty("variant"      ) var variant     : String?  = null
     )
 
+
     private suspend fun getKronchMetadataInfo(url: String): KrunchyLoadMain {
-        getConsuToken()
+        proxyToken()
         return app.get(url, headers = latestKrunchyHeader).parsed()
     }
 
-    private suspend fun getMovie(id: String?): ArrayList<Episode> {
-        getConsuToken()
+    private suspend fun getMovie(id: String?):ArrayList<Episode> {
+        proxyToken()
         val movie = ArrayList<Episode>()
-        val metadainfo =
-            app.get(
-                "${krunchyapi}/content/v2/cms/movie_listings/$id/movies?locale=es-ES",
-                headers = latestKrunchyHeader
-            )
-                .parsed<KrunchyLoadMain>()
+        val metadainfo = app.get("$krunchyapi/content/v2/cms/movie_listings/$id/movies?locale=es-ES", headers = latestKrunchyHeader).parsed<KrunchyLoadMain>()
         metadainfo.data.map {
             val title = it.title
-            val epID =
-                it.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams") ?: it.id
+            val epID = it.id
             val epdesc = it.description
             val posterstring = it.images?.thumbnail.toString()
             val issub = it.isSubbed
-            val posterRegex =
-                Regex("PosterTall\\(height=338,.*source=(.*),.*type=thumbnail,.width=600\\)")
+            val posterRegex = Regex("PosterTall\\(height=338,.*source=(.*),.*type=thumbnail,.width=600\\)")
             val poster = posterRegex.find(posterstring)?.destructured?.component1()
             val dataep = "{\"id\":\"$epID\",\"issub\":$issub}"
             movie.add(
@@ -328,93 +358,96 @@ class KronchESProvider : MainAPI() {
                     data = dataep,
                     description = epdesc,
                     posterUrl = poster,
-                )
-            )
+
+                    ))
         }
         return movie
     }
 
-    data class BetaKronch(
-        @JsonProperty("total") var total: Int? = null,
-        @JsonProperty("data") var data: ArrayList<BetaKronchData> = arrayListOf(),
+
+    data class  BetaKronch(
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<BetaKronchData> = arrayListOf(),
     )
-    data class BetaKronchData(
-        @JsonProperty("is_complete") var isComplete: Boolean? = null,
-        @JsonProperty("keywords") var keywords: ArrayList<String>? = arrayListOf(),
-        @JsonProperty("maturity_ratings") var maturityRatings: ArrayList<String>? = arrayListOf(),
-        @JsonProperty("is_subbed") var isSubbed: Boolean? = null,
-        @JsonProperty("audio_locale") var audioLocale: String? = null,
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("title") var title: String? = null,
-        @JsonProperty("series_id") var seriesId: String? = null,
-        @JsonProperty("is_simulcast") var isSimulcast: Boolean? = null,
-        @JsonProperty("slug_title") var slugTitle: String? = null,
-        @JsonProperty("season_number") var seasonNumber: Int? = null,
-        @JsonProperty("versions") var versions: ArrayList<Versions>? = arrayListOf(),
-        @JsonProperty("free_available_date") var freeAvailableDate: String? = null,
-        @JsonProperty("next_episode_id") var nextEpisodeId: String? = null,
-        @JsonProperty("premium_date") var premiumDate: String? = null,
-        @JsonProperty("episode_number") var episodeNumber: Int? = null,
-        @JsonProperty("season_title") var seasonTitle: String? = null,
-        @JsonProperty("is_mature") var isMature: Boolean? = null,
-        @JsonProperty("streams_link") var streamsLink: String? = null,
-        @JsonProperty("available_date") var availableDate: String? = null,
-        @JsonProperty("listing_id") var listingId: String? = null,
-        @JsonProperty("is_dubbed") var isDubbed: Boolean? = null,
-        @JsonProperty("slug") var slug: String? = null,
-        @JsonProperty("mature_blocked") var matureBlocked: Boolean? = null,
-        @JsonProperty("sequence_number") var sequenceNumber: Int? = null,
-        @JsonProperty("is_clip") var isClip: Boolean? = null,
-        @JsonProperty("season_slug_title") var seasonSlugTitle: String? = null,
-        @JsonProperty("description") var description: String? = null,
-        @JsonProperty("eligible_region") var eligibleRegion: String? = null,
-        @JsonProperty("media_type") var mediaType: String? = null,
-        @JsonProperty("subtitle_locales") var subtitleLocales: ArrayList<String>? = arrayListOf(),
-        @JsonProperty("episode") var episode: String? = null,
-        @JsonProperty("images") var images: KrunchyImages? = KrunchyImages(),
-        @JsonProperty("series_title") var seriesTitle: String? = null,
-        @JsonProperty("next_episode_title") var nextEpisodeTitle: String? = null,
-        @JsonProperty("seo_title") var seoTitle: String? = null,
-        @JsonProperty("hd_flag") var hdFlag: Boolean? = null,
-        @JsonProperty("available_offline") var availableOffline: Boolean? = null,
-        @JsonProperty("series_slug_title") var seriesSlugTitle: String? = null,
-        @JsonProperty("availability_ends") var availabilityEnds: String? = null,
-        @JsonProperty("production_episode_id") var productionEpisodeId: String? = null,
-        @JsonProperty("identifier") var identifier: String? = null,
-        @JsonProperty("episode_air_date") var episodeAirDate: String? = null,
-        @JsonProperty("upload_date") var uploadDate: String? = null,
-        @JsonProperty("availability_starts") var availabilityStarts: String? = null,
-        @JsonProperty("premium_available_date") var premiumAvailableDate: String? = null,
-        @JsonProperty("availability_notes") var availabilityNotes: String? = null,
-        @JsonProperty("season_id") var seasonId: String? = null,
-        @JsonProperty("duration_ms") var durationMs: Int? = null,
-        @JsonProperty("closed_captions_available") var closedCaptionsAvailable: Boolean? = null,
-        @JsonProperty("seo_description") var seoDescription: String? = null,
-        @JsonProperty("is_premium_only") var isPremiumOnly: Boolean? = null
+    data class BetaKronchData (
+        @JsonProperty("is_complete"              ) var isComplete             : Boolean?                = null,
+        @JsonProperty("keywords"                 ) var keywords               : ArrayList<String>?       = arrayListOf(),
+        @JsonProperty("maturity_ratings"         ) var maturityRatings        : ArrayList<String>?       = arrayListOf(),
+        @JsonProperty("is_subbed"                ) var isSubbed               : Boolean?                = null,
+        @JsonProperty("audio_locale"             ) var audioLocale            : String?                 = null,
+        @JsonProperty("id"                       ) var id                     : String?                 = null,
+        @JsonProperty("title"                    ) var title                  : String?                 = null,
+        @JsonProperty("series_id"                ) var seriesId               : String?                 = null,
+        @JsonProperty("is_simulcast"             ) var isSimulcast            : Boolean?                = null,
+        @JsonProperty("slug_title"               ) var slugTitle              : String?                 = null,
+        @JsonProperty("season_number"            ) var seasonNumber           : Int?                    = null,
+        @JsonProperty("versions"                 ) var versions               : ArrayList<Versions>?    = arrayListOf(),
+        @JsonProperty("free_available_date"       ) var freeAvailableDate       : String?                 = null,
+        @JsonProperty("next_episode_id"           ) var nextEpisodeId           : String?                 = null,
+        @JsonProperty("premium_date"              ) var premiumDate             : String?                 = null,
+        @JsonProperty("episode_number"            ) var episodeNumber           : Int?                    = null,
+        @JsonProperty("season_title"              ) var seasonTitle             : String?                 = null,
+        @JsonProperty("is_mature"                 ) var isMature                : Boolean?                = null,
+        @JsonProperty("streams_link"              ) var streamsLink             : String?                 = null,
+        @JsonProperty("available_date"            ) var availableDate           : String?                 = null,
+        @JsonProperty("listing_id"                ) var listingId               : String?                 = null,
+        @JsonProperty("is_dubbed"                 ) var isDubbed                : Boolean?                = null,
+        @JsonProperty("slug"                      ) var slug                    : String?                 = null,
+        @JsonProperty("mature_blocked"            ) var matureBlocked           : Boolean?                = null,
+        @JsonProperty("sequence_number"           ) var sequenceNumber          : Int?                    = null,
+        @JsonProperty("is_clip"                   ) var isClip                  : Boolean?                = null,
+        @JsonProperty("season_slug_title"         ) var seasonSlugTitle         : String?                 = null,
+        @JsonProperty("description"               ) var description             : String?                 = null,
+        @JsonProperty("eligible_region"           ) var eligibleRegion          : String?                 = null,
+        @JsonProperty("media_type"                ) var mediaType               : String?                 = null,
+        @JsonProperty("subtitle_locales"          ) var subtitleLocales         : ArrayList<String>?       = arrayListOf(),
+        @JsonProperty("episode"                   ) var episode                 : String?                 = null,
+        @JsonProperty("images"                    ) var images                  : KrunchyImages?                 = KrunchyImages(),
+        @JsonProperty("series_title"              ) var seriesTitle             : String?                 = null,
+        @JsonProperty("next_episode_title"        ) var nextEpisodeTitle        : String?                 = null,
+        @JsonProperty("seo_title"                 ) var seoTitle                : String?                 = null,
+        @JsonProperty("hd_flag"                   ) var hdFlag                  : Boolean?                = null,
+        @JsonProperty("available_offline"         ) var availableOffline        : Boolean?                = null,
+        @JsonProperty("series_slug_title"         ) var seriesSlugTitle         : String?                 = null,
+        @JsonProperty("availability_ends"         ) var availabilityEnds        : String?                 = null,
+        @JsonProperty("production_episode_id"     ) var productionEpisodeId     : String?                 = null,
+        @JsonProperty("identifier"                ) var identifier              : String?                 = null,
+        @JsonProperty("episode_air_date"          ) var episodeAirDate          : String?                 = null,
+        @JsonProperty("upload_date"               ) var uploadDate              : String?                 = null,
+        @JsonProperty("availability_starts"       ) var availabilityStarts      : String?                 = null,
+        @JsonProperty("premium_available_date"    ) var premiumAvailableDate    : String?                 = null,
+        @JsonProperty("availability_notes"        ) var availabilityNotes       : String?                 = null,
+        @JsonProperty("season_id"                 ) var seasonId                : String?                 = null,
+        @JsonProperty("duration_ms"               ) var durationMs              : Int?                    = null,
+        @JsonProperty("closed_captions_available" ) var closedCaptionsAvailable : Boolean?                = null,
+        @JsonProperty("seo_description"           ) var seoDescription          : String?                 = null,
+        @JsonProperty("is_premium_only"           ) var isPremiumOnly           : Boolean?                = null
     )
 
-    data class BetaKronchRecsMain(
-        @JsonProperty("total") var total: Int? = null,
-        @JsonProperty("data") var data: ArrayList<BetaKronchRecData> = arrayListOf(),
+
+    data class BetaKronchRecsMain (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<BetaKronchRecData> = arrayListOf(),
     )
-    data class BetaKronchRecData(
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("slug_title") var slugTitle: String? = null,
-        @JsonProperty("title") var title: String? = null,
-        @JsonProperty("promo_title") var promoTitle: String? = null,
-        @JsonProperty("description") var description: String? = null,
-        @JsonProperty("type") var type: String? = null,
-        @JsonProperty("images") var images: KrunchyImages? = KrunchyImages(),
-        @JsonProperty("promo_description") var promoDescription: String? = null,
-        @JsonProperty("new") var new: Boolean? = null,
-        @JsonProperty("slug") var slug: String? = null,
-        @JsonProperty("channel_id") var channelId: String? = null,
-        @JsonProperty("linked_resource_key") var linkedResourceKey: String? = null,
-        @JsonProperty("external_id") var externalId: String? = null,
+    data class BetaKronchRecData (
+        @JsonProperty("id"                  ) var id                : String?         = null,
+        @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
+        @JsonProperty("title"               ) var title             : String?         = null,
+        @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
+        @JsonProperty("description"         ) var description       : String?         = null,
+        @JsonProperty("type"                ) var type              : String?         = null,
+        @JsonProperty("images"              ) var images            : KrunchyImages?         = KrunchyImages(),
+        @JsonProperty("promo_description"   ) var promoDescription  : String?         = null,
+        @JsonProperty("new"                 ) var new               : Boolean?        = null,
+        @JsonProperty("slug"                ) var slug              : String?         = null,
+        @JsonProperty("channel_id"          ) var channelId         : String?         = null,
+        @JsonProperty("linked_resource_key" ) var linkedResourceKey : String?         = null,
+        @JsonProperty("external_id"         ) var externalId        : String?         = null,
     )
 
-    private suspend fun getRecommendations(seriesId: String?): List<SearchResponse>? {
-        getConsuToken()
+
+    private suspend fun getRecommendations(seriesId: String?): List<SearchResponse>?{
+        proxyToken()
         val recsurl = "$krunchyapi/content/v2/discover/similar_to/$seriesId?locale=es-ES&n=30"
         val res = app.get(recsurl, headers = latestKrunchyHeader).parsedSafe<BetaKronchRecsMain>()
         return res?.data?.map { rec ->
@@ -423,45 +456,40 @@ class KronchESProvider : MainAPI() {
             val poster = rec.images?.posterTall?.map { it[5].source }?.first() ?: ""
             val rType = rec.type
             val rdata = "{\"tvtype\":\"$rType\",\"seriesID\":\"$sID\"}"
-            newAnimeSearchResponse(rTitle, rdata) { this.posterUrl = poster }
+            newAnimeSearchResponse(rTitle,rdata){
+                this.posterUrl = poster
+            }
         }
     }
 
-    private fun BetaKronchData.togetNormalEps(isSubbed: Boolean?): Episode {
+    private fun BetaKronchData.togetNormalEps(isSubbed: Boolean?):Episode{
         val eptitle = this.title
-        val epID = this.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams")
+        val epID= this.streamsLink?.substringAfter("/videos/")?.substringBefore("/streams") ?: this.id
         val epthumb = this.images?.thumbnail?.map { it[3].source }?.first() ?: ""
         val epplot = this.description
-        val season = this.seasonNumber.toString().toIntOrNull()
+        val season = this.seasonNumber
         val epnum = this.episodeNumber
         val dataep = "{\"id\":\"$epID\",\"issub\":$isSubbed}"
-        val sstitle = this.seasonTitle ?: ""
-        // To fix missing seasons
-        val newSeason =
-            if (sstitle.contains(Regex("(?i)(Alicization War of Underworld|Battle of Kimluck)")))
-                season?.plus(1)
-            else if (sstitle.contains(Regex("(?i)(Arco del Barrio del Placer)"))) season?.plus(1)
-            else season
-        return newEpisode(dataep) {
+        return newEpisode(dataep){
             this.name = eptitle
+            this.episode = epnum
+            this.season = season
             this.description = epplot
             this.posterUrl = epthumb
-            this.season = newSeason
-            this.episode = epnum
         }
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val fixedData = url.replace("https://www.crunchyroll.com/", "")
+        val fixedData = url.replace("https://www.crunchyroll.com/","")
         val parsedData = parseJson<LoadDataInfo>(fixedData)
         val seriesIDSuper = parsedData.seriesID
         val type = parsedData.tvtype
         val tvType = if (type!!.contains("movie")) TvType.AnimeMovie else TvType.Anime
         val isMovie = tvType == TvType.AnimeMovie
-        val tttt =
-            if (isMovie) "$krunchyapi/content/v2/cms/movie_listings/$seriesIDSuper?locale=es-ES"
-            else "$krunchyapi/content/v2/cms/series/$seriesIDSuper?locale=es-ES"
+        val tttt = if (isMovie) "$krunchyapi/content/v2/cms/movie_listings/$seriesIDSuper?locale=es-ES" else "$krunchyapi/content/v2/cms/series/$seriesIDSuper?locale=es-ES"
         val response = getKronchMetadataInfo(tttt).data.first()
+        val dubEps = ArrayList<Episode>()
+        val subEps = if (isMovie) getMovie(seriesIDSuper)  else ArrayList()
         val title = response.title.toString()
         val plot = response.description.toString()
         val year = response.seriesLaunchYear
@@ -470,15 +498,11 @@ class KronchESProvider : MainAPI() {
         val tags = response.keywords
         val infodata = "{\"tvtype\":\"$type\",\"seriesID\":\"$seriesIDSuper\"}"
         val recommendations = getRecommendations(seriesIDSuper)
-        val dubEps = ArrayList<Episode>()
-        val subEps =
-            if (isMovie || title.contains(Regex("(?i)The.Movie"))) getMovie(seriesIDSuper)
-            else ArrayList<Episode>()
         if (tvType == TvType.Anime) {
-            getConsuToken()
+            proxyToken()
             val nn =
                 app.get(
-                    "$krunchyapi/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES",
+                    "${krunchyapi}/content/v2/cms/series/$seriesIDSuper/seasons?locale=es-ES",
                     headers = latestKrunchyHeader
                 )
                     .parsedSafe<BetaKronch>()
@@ -507,7 +531,7 @@ class KronchESProvider : MainAPI() {
                 val mainID = main.id
                 val res =
                     app.get(
-                        "$krunchyapi/content/v2/cms/seasons/$mainID/episodes?&locale=es-ES",
+                        "${krunchyapi}/content/v2/cms/seasons/$mainID/episodes?&locale=es-ES",
                         headers = latestKrunchyHeader
                     )
                         .parsedSafe<BetaKronch>()
@@ -540,11 +564,10 @@ class KronchESProvider : MainAPI() {
                                 it.audioLocale.isNullOrEmpty())
                     }
                 versionsfiltered?.apmap { vers ->
-                    getConsuToken()
                     val guid = vers.guid
                     val resv =
                         app.get(
-                            "$krunchyapi/content/v2/cms/seasons/$guid/episodes?&locale=es-ES",
+                            "${krunchyapi}/content/v2/cms/seasons/$guid/episodes?&locale=es-ES",
                             headers = latestKrunchyHeader
                         )
                             .parsedSafe<BetaKronch>()
@@ -575,9 +598,10 @@ class KronchESProvider : MainAPI() {
 
         val dubes =
             dubEps.distinctBy { it.data }.sortedWith(compareBy({ it.season }, { it.episode }))
+
         return newAnimeLoadResponse(title, infodata, TvType.Anime) {
-            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed, sases)
-            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubes)
+            if (subEps.isNotEmpty()) addEpisodes(DubStatus.Subbed,sases.toSet().toList())
+            if (dubEps.isNotEmpty()) addEpisodes(DubStatus.Dubbed,dubes.toSet().toList())
             this.plot = plot
             this.tags = tags
             this.year = year
@@ -585,44 +609,60 @@ class KronchESProvider : MainAPI() {
             this.backgroundPosterUrl = backposter
             this.recommendations = recommendations
         }
+
     }
 
-    data class EpsInfo(
-        @JsonProperty("id") var id: String? = null,
-        @JsonProperty("issub") var issub: Boolean? = null
+
+    data class EpsInfo (
+        @JsonProperty("id"    ) var id    : String?  = null,
+        @JsonProperty("issub" ) var issub : Boolean? = null
     )
+
 
     private suspend fun getKronchStream(
         streamLink: String,
         name: String,
         callback: (ExtractorLink) -> Unit
-    ) {
-        return M3u8Helper.generateM3u8(name, streamLink, "https://static.crunchyroll.com/")
-            .forEach(callback)
+    )  {
+        return M3u8Helper.generateM3u8(
+            name,
+            streamLink,
+            "https://static.crunchyroll.com/"
+        ).forEach(callback)
     }
 
-    data class BetaKronchStreams(
-        @JsonProperty("media_id") var mediaId: String? = null,
-        @JsonProperty("audio_locale") var audioLocale: String? = null,
-        @JsonProperty("subtitles") var subtitles: HashMap<String, Subtitle>? = HashMap(),
-        @JsonProperty("streams") var streams: Testt? = Testt(),
-    )
 
-    data class Subtitle(
+
+    data class Subtitle (
         val locale: String? = null,
         val url: String? = null,
         val format: String? = null,
     )
-    data class Testt(
-        @JsonProperty("adaptive_hls") val adaptiveHLS: Map<String, BetaKronchS>? = null,
-        @JsonProperty("vo_adaptive_hls") val vrvHLS: Map<String, BetaKronchS>? = null,
+
+    data class Testt (
+        @JsonProperty("adaptive_hls")val adaptiveHLS: Map<String, BetaKronchS>? = null,
+        @JsonProperty("vo_adaptive_hls")val vrvHLS: Map<String, BetaKronchS>? = null,
         @JsonProperty("multitrack_adaptive_hls_v2") val multiadaptiveHLS: Map<String, BetaKronchS>? = null,
     )
 
-    data class BetaKronchS(
-        @JsonProperty("hardsub_locale") var hardsubLocale: String? = null,
-        @JsonProperty("url") var url: String? = null,
+
+
+    data class BetaKronchS (
+        @JsonProperty("hardsub_locale" ) var hardsubLocale : String? = null,
+        @JsonProperty("url"            ) var url           : String? = null,
     )
+
+
+    data class BetaKronchGEOStreams (
+        @JsonProperty("total" ) var total : Int?            = null,
+        @JsonProperty("data"  ) var data  : ArrayList<Testt>? = arrayListOf(),
+        @JsonProperty("meta"  ) var meta  : Meta?           = Meta()
+    )
+    data class Meta (
+        @JsonProperty("subtitles"       ) var subtitles      : Map<String, Subtitle>?          = null,
+    )
+
+
 
     private fun fixLocale(locale: String?): String {
         val localea =
@@ -657,35 +697,30 @@ class KronchESProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        getKronchToken()
-        val replace = data.replace("https://www.crunchyroll.com/", "")
-        val parsedata = parseJson<EpsInfo>(replace)
-        val consuToken = app.get("https://cronchy.consumet.stream/token").parsed<ConsuToken>()
+        proxyToken()
+        val newdata = data.replace("https://www.crunchyroll.com/","")
+        val parsedata = parseJson<EpsInfo>(newdata)
         val mediaId = parsedata.id
         val issub = parsedata.issub == true
-        val response =
-            app.get(
-                "$krunchyapi/cms/v2${consuToken.bucket}/videos/$mediaId/streams?Policy=${consuToken.policy}&Signature=${consuToken.signature}&Key-Pair-Id=${consuToken.keyPairId}"
-            )
-                .parsed<BetaKronchStreams>()
-        val adphls = response.streams?.multiadaptiveHLS ?: response.streams?.adaptiveHLS
-        val vvhls = response.streams?.vrvHLS
-        val bbb = listOfNotNull(vvhls, adphls)
-        bbb.apmap { aa ->
-            aa.entries
-                .filter { it.key == "es-ES" || it.key == "es-419" || it.key.isEmpty() }
-                .map { it.value }
-                .apmap {
+        val response = app.get("$krunchyapi/content/v2/cms/videos/$mediaId/streams", latestKrunchyHeader).parsed<BetaKronchGEOStreams>()
+        response.data?.map {testt ->
+            val adphls = testt.multiadaptiveHLS ?: testt.adaptiveHLS
+            val vvhls = testt.vrvHLS
+            val bbb = listOfNotNull(vvhls, adphls)
+            bbb.apmap { aa ->
+                aa.entries.filter {
+                    it.key == "es-ES" || it.key == "es-419" || it.key.isEmpty()
+                }.map {
+                    it.value
+                }.apmap {
                     val raw = it.hardsubLocale?.isEmpty()
                     val hardsubinfo = it.hardsubLocale?.contains(Regex("es-ES|es-419"))
                     val hardss = it.hardsubLocale
                     val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
-                    val name =
-                        if (raw == false && issub && hardss?.contains("es-ES") == true)
-                            "Kronch$vvv Hardsub Español España"
-                        else if (raw == false && issub && hardss?.contains("es-419") == true)
-                            "Kronch$vvv Hardsub Español LAT"
-                        else if (!issub) "Kronch$vvv Español" else "Kronch$vvv RAW"
+                    val name = if (raw == false && issub && hardss?.contains("es-ES") == true) "Kronch$vvv Hardsub Español España"
+                    else if (raw == false && issub && hardss?.contains("es-419") == true) "Kronch$vvv Hardsub Español LAT"
+                    else if (!issub) "Kronch$vvv Español"
+                    else "Kronch$vvv RAW"
 
                     if (hardsubinfo == true && issub) {
                         getKronchStream(it.url!!, name, callback)
@@ -694,16 +729,17 @@ class KronchESProvider : MainAPI() {
                         getKronchStream(it.url!!, name, callback)
                     }
                 }
-        }
-
-        response.subtitles
-            ?.map { it.value }
-            ?.map {
-                val lang = fixLocale(it.locale)
-                val url = it.url
-                subtitleCallback.invoke(SubtitleFile(lang, url!!))
             }
-
+        }
+        response.meta?.subtitles?.map {
+            it.value
+        }?.map {
+            val lang = fixLocale(it.locale)
+            val url = it.url
+            subtitleCallback.invoke(
+                SubtitleFile(lang,url!!)
+            )
+        }
         return true
     }
 }
