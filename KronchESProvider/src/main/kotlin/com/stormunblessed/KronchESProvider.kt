@@ -1,12 +1,17 @@
 package com.stormunblessed
 
 
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.AcraApplication.Companion.context
 import com.lagradost.nicehttp.requestCreator
+import com.stormunblessed.KronchESProviderPlugin.Companion.postFunction
 import java.net.Authenticator
 import java.net.InetSocketAddress
 import java.net.PasswordAuthentication
@@ -33,6 +38,7 @@ class KronchESProvider: MainAPI() {
         TvType.AnimeMovie,
         TvType.Anime,
     )
+    private val handler by lazy { Handler(Looper.getMainLooper()) }
 
 
     data class KronchyToken (
@@ -718,22 +724,29 @@ class KronchESProvider: MainAPI() {
                     it.key == "es-ES" || it.key == "es-419" || it.key.isEmpty()
                 }.map {
                     it.value
-                }.apmap {
-                    val raw = it.hardsubLocale?.isEmpty()
-                    val hardsubinfo = it.hardsubLocale?.contains(Regex("es-ES|es-419"))
-                    val hardss = it.hardsubLocale
-                    val vvv = if (it.url!!.contains("vrv.co")) "_VRV" else ""
-                    val name = if (raw == false && issub && hardss?.contains("es-ES") == true) "Kronch$vvv Hardsub Español España"
-                    else if (raw == false && issub && hardss?.contains("es-419") == true) "Kronch$vvv Hardsub Español LAT"
-                    else if (!issub) "Kronch$vvv Español"
-                    else "Kronch$vvv RAW"
+                }.amap {str ->
+                    val m3u8Url = str.url
+                    val testtting = app.get(m3u8Url!!, referer = "https://static.crunchyroll.com/").text
+                    if (testtting.contains(Regex("(?i)accessdenied"))) handler.postFunction {
+                        context.let { tt -> Toast.makeText(tt, "Recarga los enlaces.", Toast.LENGTH_LONG).show() }
+                    } else {
+                        val raw = str.hardsubLocale?.isEmpty()
+                        val hardsubinfo = str.hardsubLocale?.contains(Regex("es-ES|es-419"))
+                        val hardss = str.hardsubLocale
+                        val vvv = if (m3u8Url.contains("vrv.co")) "_VRV" else ""
+                        val name = if (raw == false && issub && hardss?.contains("es-ES") == true) "Kronch$vvv Hardsub Español España"
+                        else if (raw == false && issub && hardss?.contains("es-419") == true) "Kronch$vvv Hardsub Español LAT"
+                        else if (!issub) "Kronch$vvv Español"
+                        else "Kronch$vvv RAW"
 
-                    if (hardsubinfo == true && issub) {
-                        getKronchStream(it.url!!, name, callback)
+                        if (hardsubinfo == true && issub) {
+                            getKronchStream(m3u8Url, name, callback)
+                        }
+                        if (raw == true) {
+                            getKronchStream(m3u8Url, name, callback)
+                        }
                     }
-                    if (raw == true) {
-                        getKronchStream(it.url!!, name, callback)
-                    }
+
                 }
             }
         }

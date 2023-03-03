@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 25
+version = 26
 
 
 cloudstream {
     language = "en"
     // All of these properties are optional, you can safely remove them
 
-    description = "With this extension you will be able to watch hardsubbed/dubbed anime available in the US catalog of that site."
+    description = "With this extension you will be able to watch english hardsubbed/dubbed anime available in the US catalog of that site."
     authors = listOf("Stormunblessed")
 
     /**
