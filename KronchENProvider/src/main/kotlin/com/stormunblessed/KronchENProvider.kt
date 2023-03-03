@@ -341,9 +341,9 @@ class KronchENProvider: MainAPI() {
                 }
             }
 
-        items.add(HomePageList("Popular", home))
-        items.add(HomePageList("New episodes (SUB)", epss, true))
-        items.add(HomePageList("New episodes (DUB)", ssss, true))
+        if (home.isNotEmpty()) items.add(HomePageList("Popular", home))
+        if (epss.isNotEmpty()) items.add(HomePageList("New episodes (SUB)", epss, true))
+        if (ssss.isNotEmpty()) items.add(HomePageList("New episodes (DUB)", ssss, true))
         if (items.size <= 0) throw ErrorLoadingException()
         return HomePageResponse(items)
     }
