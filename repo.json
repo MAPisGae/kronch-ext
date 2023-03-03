@@ -1,6 +1,6 @@
 {
   "name": "Stormunblessed Kronch Providers Repository",
-  "description": "Kamyroll Providers",
+  "description": "Kronch Providers",
   "manifestVersion": 1,
   "pluginLists": [
     "https://raw.githubusercontent.com/stormunblessed/kamy-cs3/builds/plugins.json"
