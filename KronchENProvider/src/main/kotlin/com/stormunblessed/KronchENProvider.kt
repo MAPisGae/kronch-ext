@@ -166,6 +166,7 @@ class KronchENProvider: MainAPI() {
         @JsonProperty("slug_title"          ) var slugTitle         : String?         = null,
         @JsonProperty("external_id"         ) var externalId        : String?         = null,
         @JsonProperty("series_metadata"     ) var seriesMetadata    : KrunchySeriesMetadata? = KrunchySeriesMetadata(),
+        @JsonProperty("episode_metadata"     ) var episodeMetadata    : KrunchyEpisodesMetadata? = KrunchyEpisodesMetadata(),
         @JsonProperty("type"                ) var type              : String?         = null,
         @JsonProperty("id"                  ) var id                : String?         = null,
         @JsonProperty("promo_title"         ) var promoTitle        : String?         = null,
@@ -193,6 +194,41 @@ class KronchENProvider: MainAPI() {
         @JsonProperty("subtitle_locales"         ) var subtitleLocales        : ArrayList<String>       = arrayListOf()
     )
 
+    data class KrunchyEpisodesMetadata(
+        @JsonProperty("audio_locale"              ) var audioLocale             : String?                 = null,
+        @JsonProperty("availability_ends"         ) var availabilityEnds        : String?                 = null,
+        @JsonProperty("availability_notes"        ) var availabilityNotes       : String?                 = null,
+        @JsonProperty("availability_starts"       ) var availabilityStarts      : String?                 = null,
+        @JsonProperty("available_date"            ) var availableDate           : String?                 = null,
+        @JsonProperty("available_offline"         ) var availableOffline        : Boolean?                = null,
+        @JsonProperty("closed_captions_available" ) var closedCaptionsAvailable : Boolean?                = null,
+        @JsonProperty("duration_ms"               ) var durationMs              : Int?                    = null,
+        @JsonProperty("eligible_region"           ) var eligibleRegion          : String?                 = null,
+        @JsonProperty("episode"                   ) var episode                 : String?                 = null,
+        @JsonProperty("episode_air_date"          ) var episodeAirDate          : String?                 = null,
+        @JsonProperty("episode_number"            ) var episodeNumber           : String?                 = null,
+        @JsonProperty("free_available_date"       ) var freeAvailableDate       : String?                 = null,
+        @JsonProperty("identifier"                ) var identifier              : String?                 = null,
+        @JsonProperty("is_clip"                   ) var isClip                  : Boolean?                = null,
+        @JsonProperty("is_dubbed"                 ) var isDubbed                : Boolean?                = null,
+        @JsonProperty("is_mature"                 ) var isMature                : Boolean?                = null,
+        @JsonProperty("is_premium_only"           ) var isPremiumOnly           : Boolean?                = null,
+        @JsonProperty("is_subbed"                 ) var isSubbed                : Boolean?                = null,
+        @JsonProperty("mature_blocked"            ) var matureBlocked           : Boolean?                = null,
+        @JsonProperty("maturity_ratings"          ) var maturityRatings         : ArrayList<String>?       = arrayListOf(),
+        @JsonProperty("premium_available_date"    ) var premiumAvailableDate    : String?                 = null,
+        @JsonProperty("premium_date"              ) var premiumDate             : String?                 = null,
+        @JsonProperty("season_id"                 ) var seasonId                : String?                 = null,
+        @JsonProperty("season_number"             ) var seasonNumber            : Int?                    = null,
+        @JsonProperty("season_slug_title"         ) var seasonSlugTitle         : String?                 = null,
+        @JsonProperty("season_title"              ) var seasonTitle             : String?                 = null,
+        @JsonProperty("sequence_number"           ) var sequenceNumber          : Int?                    = null,
+        @JsonProperty("series_id"                 ) var seriesId                : String?                 = null,
+        @JsonProperty("series_slug_title"         ) var seriesSlugTitle         : String?                 = null,
+        @JsonProperty("series_title"              ) var seriesTitle             : String?                 = null,
+        @JsonProperty("subtitle_locales"          ) var subtitleLocales         : ArrayList<String>?       = arrayListOf(),
+        @JsonProperty("upload_date"               ) var uploadDate              : String?                 = null,
+    )
 
     data class KrunchyLoadMain (
         @JsonProperty("total" ) var total : Int?            = null,
@@ -243,38 +279,75 @@ class KronchENProvider: MainAPI() {
 
 
 
+    private fun KrunchyItems.toHome(dubStatus: DubStatus):SearchResponse {
+        val img = this.images?.thumbnail?.get(0)?.get(4)?.source
+        val seriesID = this.episodeMetadata?.seriesId
+        val epNum = this.episodeMetadata?.episode ?: this.episodeMetadata?.episodeNumber
+        val data = "{\"tvtype\":\"series\",\"seriesID\":\"$seriesID\"}"
+        val title = this.episodeMetadata?.seriesTitle ?: ""
+        return newAnimeSearchResponse(title, data) {
+            this.posterUrl = img
+            addDubStatus(dubStatus, epNum?.toIntOrNull())
+        }
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        proxyToken()
         val items = ArrayList<HomePageList>()
-        val urls = listOf(
-            Pair("$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=popularity", "Popular"),
-            Pair("$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=newly_added", "Newly Added")
-        )
-         proxyToken()
-        urls.apmap {(url, name) ->
-            val res = app.get(url,
+        val aaaa =
+            app.get(
+                "$krunchyapi/content/v1/browse?n=100&sort_by=newly_added&type=episode",
                 headers = latestKrunchyHeader
             ).parsed<KrunchyHome>()
-            val home = res.items.map {
+
+        val epss =
+            aaaa.items
+                .filter {
+                    it.episodeMetadata?.audioLocale == "ja-JP" ||
+                            it.episodeMetadata?.audioLocale?.isEmpty() == true
+                }
+                .map {
+                    it.toHome(DubStatus.Subbed)
+                }
+
+        val ssss =
+            aaaa.items
+                .filter { it.episodeMetadata?.audioLocale == "en-US" }
+                .map {
+                    it.toHome(DubStatus.Dubbed)
+                }
+
+        val res =
+            app.get(
+                "$krunchyapi/content/v1/browse?locale=en-US&n=30&sort_by=popularity",
+                headers = latestKrunchyHeader
+            ).parsed<KrunchyHome>()
+
+        val home =
+            res.items.map {
                 val title = it.title
                 val issub = it.seriesMetadata?.isSubbed == true
                 val isdub = it.seriesMetadata?.isDubbed == true
-                //val epss = it.seriesMetadata?.episodeCount
+                // val epss = it.seriesMetadata?.episodeCount
                 val posterstring = it.images?.posterTall.toString()
-                //val ttt = it.images?.posterTall?.get(0)?.get(6)?.source ?: ""
+                // val ttt = it.images?.posterTall?.get(0)?.get(6)?.source ?: ""
                 val posterregex = Regex("height=2340.*source=(.*),.*type=poster_tall")
                 val poster = posterregex.find(posterstring)?.destructured?.component1() ?: ""
                 val seriesID = it.id
                 val data = "{\"tvtype\":\"${it.type}\",\"seriesID\":\"$seriesID\"}"
-                newAnimeSearchResponse(title!!, data){
+                newAnimeSearchResponse(title!!, data) {
                     this.posterUrl = poster
                     addDubStatus(isdub, issub)
                 }
             }
-            items.add(HomePageList(name, home))
-        }
+
+        items.add(HomePageList("Popular", home))
+        items.add(HomePageList("New episodes (SUB)", epss, true))
+        items.add(HomePageList("New episodes (DUB)", ssss, true))
         if (items.size <= 0) throw ErrorLoadingException()
         return HomePageResponse(items)
     }
+
     data class BetaKronchGEOSearch (
         @JsonProperty("total" ) var total : Int?            = null,
         @JsonProperty("data"  ) var data  : ArrayList<GeoSearchData> = arrayListOf(),
